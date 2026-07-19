@@ -20,9 +20,18 @@ images, and never bypasses paywalls or access controls.
 |---|---|---|---|
 | `ndl` — National Diet Library (Japan) | implemented | `ndlsearch.ndl.go.jp/api/sru` (SRU, dcndl schema) | none |
 | `loc` — Library of Congress (US) | implemented | `www.loc.gov/search/` (JSON API) | none |
+| `dnb` — Deutsche Nationalbibliothek (Germany) | implemented | `services.dnb.de/sru/dnb` (SRU, oai_dc schema) | none |
 | `korea-nl` — National Library of Korea | implemented, **blocked on a key** | `www.nl.go.kr/NL/search/openApi/search.do` | `NL_GO_KR_API_KEY` — register at nl.go.kr (manual, per-account approval; unverified whether non-Korean applicants can register) |
 | `iran-nlai` — National Library of Iran | **`:spec`, not implemented** | none exists | — |
 | `russia-rsl` — Russian State Library / National Library of Russia | **`:spec`, not implemented** | none exists | — |
+
+Coverage is being extended incrementally (one new jurisdiction at a time,
+each with a real working harvester verified against live data before
+being added to this table — not just a stub) via a recurring background
+task. Each addition's own commit message is the record of what changed
+and what was verified; this repo's own git history is authoritative for
+that per ADR-2607072300, so per-jurisdiction additions don't each get a
+new superproject ADR.
 
 Iran and Russia have no official API, OAI-PMH, SRU, or bulk export — only
 unofficial third-party HTML scrapers exist for either, and both sit in
@@ -41,6 +50,7 @@ nbb). From this repo's root:
 # harvest a source into this repo's own 80-data/public/<source>.journal.edn
 npx nbb --classpath "src" scripts/harvest.cljs ndl 'title="夏目漱石"' 20
 npx nbb --classpath "src" scripts/harvest.cljs loc "natsume soseki" 20
+npx nbb --classpath "src" scripts/harvest.cljs dnb "WOE=soseki" 20
 NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljs korea-nl "소세키" 20
 
 # fold every local journal into kotobase.net (self-mints an Ed25519
@@ -58,7 +68,7 @@ npx nbb --classpath "src:test" scripts/run-tests.cljs
 
 Quads use the `[entity attr value tx op]` shape from ADR-2607072300.
 Entities are namespaced by source: `ndl:<bib-id>`, `loc:<lccn-or-id>`,
-`korea-nl:<control-no>`. Attributes: `:library/source`,
+`dnb:<idn>`, `korea-nl:<control-no>`. Attributes: `:library/source`,
 `:library/source-url`, `:library/title`, `:library/creator` (many),
 `:library/publisher`, `:library/date`, `:library/language`,
 `:library/format`, `:library/ndc` / `:library/lccn` / `:library/isbn`,

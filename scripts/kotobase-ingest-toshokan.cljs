@@ -61,7 +61,7 @@
 
 (def repo-root (path/join script-dir ".."))
 
-(def sources ["ndl" "loc" "korea-nl"])
+(def sources ["ndl" "loc" "korea-nl" "dnb"])
 
 (defn journal-path [source]
   (path/join repo-root "80-data" "public" (str source ".journal.edn")))
