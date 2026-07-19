@@ -10,7 +10,7 @@
 ;; Usage (from the repo root):
 ;;   npx nbb --classpath "src" scripts/harvest.cljs <source> "<query>" [max-records]
 ;;
-;; <source> is one of: ndl | loc | korea-nl | dnb | bnf | kb-nl | libris-se | nb-no
+;; <source> is one of: ndl | loc | korea-nl | dnb | bnf | kb-nl | libris-se | nb-no | iccu-it
 ;; (iran-nlai / russia-rsl are intentionally unimplemented -- see their
 ;; namespace docstrings and the repo README/ADR.)
 
@@ -25,7 +25,8 @@
             [toshokan.sources.bnf :as bnf]
             [toshokan.sources.kb-nl :as kb-nl]
             [toshokan.sources.libris-se :as libris-se]
-            [toshokan.sources.nb-no :as nb-no]))
+            [toshokan.sources.nb-no :as nb-no]
+            [toshokan.sources.iccu-it :as iccu-it]))
 
 (def sources
   {"ndl" {:search (fn [q n] (ndl/search q :max-records n)) :->quads ndl/->quads}
@@ -35,7 +36,8 @@
    "bnf" {:search (fn [q n] (bnf/search q :max-records n)) :->quads bnf/->quads}
    "kb-nl" {:search (fn [q n] (kb-nl/search q :max-records n)) :->quads kb-nl/->quads}
    "libris-se" {:search (fn [q n] (libris-se/search q :max-records n)) :->quads libris-se/->quads}
-   "nb-no" {:search (fn [q n] (nb-no/search q :max-records n)) :->quads nb-no/->quads}})
+   "nb-no" {:search (fn [q n] (nb-no/search q :max-records n)) :->quads nb-no/->quads}
+   "iccu-it" {:search (fn [q n] (iccu-it/search q :max-records n)) :->quads iccu-it/->quads}})
 
 (defn -main [source-name query max-records]
   (if-let [{:keys [search ->quads]} (get sources source-name)]

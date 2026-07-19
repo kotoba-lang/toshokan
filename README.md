@@ -25,6 +25,7 @@ images, and never bypasses paywalls or access controls.
 | `kb-nl` — Koninklijke Bibliotheek (Netherlands) | implemented | `jsru.kb.nl/sru/sru` (SRU, dcx schema over GGC catalog) | none |
 | `libris-se` — Libris (Sweden, KB union catalog) | implemented | `libris.kb.se/xsearch` (XSearch, MODS schema) | none |
 | `nb-no` — Nasjonalbiblioteket (Norway) | implemented | `api.nb.no/catalog/v1/items` (JSON, metadata embedded in search results) | none |
+| `iccu-it` — OPAC SBN / ICCU (Italy) | implemented, **unofficial endpoint** | `opac.sbn.it/opacmobilegw/search.json` (JSON, undocumented mobile-app backend on ICCU's own domain) | none |
 | `korea-nl` — National Library of Korea | implemented, **blocked on a key** | `www.nl.go.kr/NL/search/openApi/search.do` | `NL_GO_KR_API_KEY` — register at nl.go.kr (manual, per-account approval; unverified whether non-Korean applicants can register) |
 | `iran-nlai` — National Library of Iran | **`:spec`, not implemented** | none exists | — |
 | `russia-rsl` — Russian State Library / National Library of Russia | **`:spec`, not implemented** | none exists | — |
@@ -71,12 +72,28 @@ Ireland (NLI), Canada (LAC), and Iceland (Landskerfi) either don't resolve,
 without more specific documentation research than a first-pass endpoint
 guess; worth a dedicated look rather than more guessing.
 
+**Third pass (2026-07-19, later still)**: Denmark's Royal Library data
+lives behind the DBC Open Platform (`openplatform.dbc.dk`) -- confirmed
+via its own documentation this requires a Client id/secret, and
+registration is explicitly restricted to "a Danish library or a partner
+via a library," so unlike Korea (unverified) this one is a **confirmed,
+not just probable, dead end** for a non-Danish-library registrant. Not
+wired as a coded-but-blocked source like `korea-nl`, since there's no
+realistic path to ever unblock it the way Korea's might be.
+
 Iran and Russia have no official API, OAI-PMH, SRU, or bulk export — only
 unofficial third-party HTML scrapers exist for either, and both sit in
 sanctions-sensitive territory that hasn't had legal review for this use.
 See `src/toshokan/sources/iran_nlai.cljs` and `russia_rsl.cljs` for the
 full reasoning; calling `search` on either throws immediately rather than
 silently no-op'ing.
+
+`iccu-it` is a different, lower-stakes kind of caveat: it's real data
+served directly from Italy's own official ICCU/OPAC SBN domain (not a
+third-party scrape of somebody else's system), but it's the *mobile app's*
+undocumented JSON backend, not ICCU's formally published protocol (which
+is Z39.50). See `src/toshokan/sources/iccu_it.cljs` for the full caveat —
+more likely to change/break than this repo's other sources.
 
 ## Usage
 
@@ -93,6 +110,7 @@ npx nbb --classpath "src" scripts/harvest.cljs bnf 'bib.title all "soseki"' 20
 npx nbb --classpath "src" scripts/harvest.cljs kb-nl soseki 20
 npx nbb --classpath "src" scripts/harvest.cljs libris-se soseki 20
 npx nbb --classpath "src" scripts/harvest.cljs nb-no soseki 20
+npx nbb --classpath "src" scripts/harvest.cljs iccu-it soseki 20
 NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljs korea-nl "소세키" 20
 
 # fold every local journal into kotobase.net (self-mints an Ed25519
@@ -111,7 +129,8 @@ npx nbb --classpath "src:test" scripts/run-tests.cljs
 Quads use the `[entity attr value tx op]` shape from ADR-2607072300.
 Entities are namespaced by source: `ndl:<bib-id>`, `loc:<lccn-or-id>`,
 `dnb:<idn>`, `bnf:<ark-id>`, `kb-nl:<ppn>`, `libris-se:<libris-id>`,
-`nb-no:<sesam-id>`, `korea-nl:<control-no>`. Attributes: `:library/source`,
+`nb-no:<sesam-id>`, `iccu-it:<iccu-code>`, `korea-nl:<control-no>`.
+Attributes: `:library/source`,
 `:library/source-url`, `:library/title`, `:library/creator` (many),
 `:library/publisher`, `:library/date`, `:library/language`,
 `:library/format`, `:library/ndc` / `:library/lccn` / `:library/isbn`,
