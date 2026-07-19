@@ -23,6 +23,7 @@ images, and never bypasses paywalls or access controls.
 | `dnb` — Deutsche Nationalbibliothek (Germany) | implemented | `services.dnb.de/sru/dnb` (SRU, oai_dc schema) | none |
 | `bnf` — Bibliothèque nationale de France | implemented | `catalogue.bnf.fr/api/SRU` (SRU, dublincore schema) | none |
 | `kb-nl` — Koninklijke Bibliotheek (Netherlands) | implemented | `jsru.kb.nl/sru/sru` (SRU, dcx schema over GGC catalog) | none |
+| `libris-se` — Libris (Sweden, KB union catalog) | implemented | `libris.kb.se/xsearch` (XSearch, MODS schema) | none |
 | `korea-nl` — National Library of Korea | implemented, **blocked on a key** | `www.nl.go.kr/NL/search/openApi/search.do` | `NL_GO_KR_API_KEY` — register at nl.go.kr (manual, per-account approval; unverified whether non-Korean applicants can register) |
 | `iran-nlai` — National Library of Iran | **`:spec`, not implemented** | none exists | — |
 | `russia-rsl` — Russian State Library / National Library of Russia | **`:spec`, not implemented** | none exists | — |
@@ -34,6 +35,18 @@ task. Each addition's own commit message is the record of what changed
 and what was verified; this repo's own git history is authoritative for
 that per ADR-2607072300, so per-jurisdiction additions don't each get a
 new superproject ADR.
+
+**Checked and ruled out (2026-07-19), so future iterations don't re-spend
+time on these**: British Library's `sru.bl.uk` no longer resolves (DNS
+failure, service appears retired). Spain's BNE (`catalogo.bne.es/UNICORN/sru`)
+redirects into an Ex Libris Alma instance with no working SRU endpoint at
+the old URL (404 Alma error page). Switzerland's swisscovery (SLSP) is
+Alma-based behind a login redirect, no open SRU found without deeper
+digging. Korea's Trove-equivalent pattern (a real API gated on
+registration) also showed up for Australia's Trove (`api.trove.nla.gov.au`,
+401 "No API key found") -- same shape as `korea-nl`, a future addition
+would need the same "wire it, block cleanly on a human registration step"
+treatment rather than a live-verified entry.
 
 Iran and Russia have no official API, OAI-PMH, SRU, or bulk export — only
 unofficial third-party HTML scrapers exist for either, and both sit in
@@ -55,6 +68,7 @@ npx nbb --classpath "src" scripts/harvest.cljs loc "natsume soseki" 20
 npx nbb --classpath "src" scripts/harvest.cljs dnb "WOE=soseki" 20
 npx nbb --classpath "src" scripts/harvest.cljs bnf 'bib.title all "soseki"' 20
 npx nbb --classpath "src" scripts/harvest.cljs kb-nl soseki 20
+npx nbb --classpath "src" scripts/harvest.cljs libris-se soseki 20
 NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljs korea-nl "소세키" 20
 
 # fold every local journal into kotobase.net (self-mints an Ed25519
@@ -72,7 +86,8 @@ npx nbb --classpath "src:test" scripts/run-tests.cljs
 
 Quads use the `[entity attr value tx op]` shape from ADR-2607072300.
 Entities are namespaced by source: `ndl:<bib-id>`, `loc:<lccn-or-id>`,
-`dnb:<idn>`, `bnf:<ark-id>`, `kb-nl:<ppn>`, `korea-nl:<control-no>`. Attributes: `:library/source`,
+`dnb:<idn>`, `bnf:<ark-id>`, `kb-nl:<ppn>`, `libris-se:<libris-id>`,
+`korea-nl:<control-no>`. Attributes: `:library/source`,
 `:library/source-url`, `:library/title`, `:library/creator` (many),
 `:library/publisher`, `:library/date`, `:library/language`,
 `:library/format`, `:library/ndc` / `:library/lccn` / `:library/isbn`,
