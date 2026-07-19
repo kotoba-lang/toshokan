@@ -53,6 +53,24 @@ treatment rather than a live-verified entry. Finland's Finna.fi API
 since working around bot detection is out of scope regardless of API
 documentation quality.
 
+**Second pass (2026-07-19, later)**: New Zealand's DigitalNZ API
+(`api.digitalnz.org`) is real and keyless, but for library-catalog-shaped
+queries it mostly surfaced digitized newspaper articles (Papers Past) with
+a `fulltext` OCR field as the actual payload, not book-style bibliographic
+records -- filtering `and[category][]=Books` returned zero results for
+several test queries. Adding it would mean either storing full-text OCR
+(violates this repo's metadata-only scope) or shipping a source that
+rarely returns what this project means by "library catalog data" -- not
+added; revisit if a query shape is found that reliably surfaces NLNZ book
+records specifically rather than the wider GLAM aggregation. Czech
+National Library's Aleph endpoint (`aleph.nkp.cz`) IP-allowlists access
+(403 "Access from IP address ... not allowed") -- a real access control,
+not attempted around. Guessed SRU/API endpoints for Portugal (BNP/PORBASE),
+Ireland (NLI), Canada (LAC), and Iceland (Landskerfi) either don't resolve,
+403, or redirect into a UI rather than an API -- none confirmed reachable
+without more specific documentation research than a first-pass endpoint
+guess; worth a dedicated look rather than more guessing.
+
 Iran and Russia have no official API, OAI-PMH, SRU, or bulk export — only
 unofficial third-party HTML scrapers exist for either, and both sit in
 sanctions-sensitive territory that hasn't had legal review for this use.
