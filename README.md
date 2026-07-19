@@ -21,6 +21,7 @@ images, and never bypasses paywalls or access controls.
 | `ndl` — National Diet Library (Japan) | implemented | `ndlsearch.ndl.go.jp/api/sru` (SRU, dcndl schema) | none |
 | `loc` — Library of Congress (US) | implemented | `www.loc.gov/search/` (JSON API) | none |
 | `dnb` — Deutsche Nationalbibliothek (Germany) | implemented | `services.dnb.de/sru/dnb` (SRU, oai_dc schema) | none |
+| `bnf` — Bibliothèque nationale de France | implemented | `catalogue.bnf.fr/api/SRU` (SRU, dublincore schema) | none |
 | `korea-nl` — National Library of Korea | implemented, **blocked on a key** | `www.nl.go.kr/NL/search/openApi/search.do` | `NL_GO_KR_API_KEY` — register at nl.go.kr (manual, per-account approval; unverified whether non-Korean applicants can register) |
 | `iran-nlai` — National Library of Iran | **`:spec`, not implemented** | none exists | — |
 | `russia-rsl` — Russian State Library / National Library of Russia | **`:spec`, not implemented** | none exists | — |
@@ -51,6 +52,7 @@ nbb). From this repo's root:
 npx nbb --classpath "src" scripts/harvest.cljs ndl 'title="夏目漱石"' 20
 npx nbb --classpath "src" scripts/harvest.cljs loc "natsume soseki" 20
 npx nbb --classpath "src" scripts/harvest.cljs dnb "WOE=soseki" 20
+npx nbb --classpath "src" scripts/harvest.cljs bnf 'bib.title all "soseki"' 20
 NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljs korea-nl "소세키" 20
 
 # fold every local journal into kotobase.net (self-mints an Ed25519
@@ -68,7 +70,7 @@ npx nbb --classpath "src:test" scripts/run-tests.cljs
 
 Quads use the `[entity attr value tx op]` shape from ADR-2607072300.
 Entities are namespaced by source: `ndl:<bib-id>`, `loc:<lccn-or-id>`,
-`dnb:<idn>`, `korea-nl:<control-no>`. Attributes: `:library/source`,
+`dnb:<idn>`, `bnf:<ark-id>`, `korea-nl:<control-no>`. Attributes: `:library/source`,
 `:library/source-url`, `:library/title`, `:library/creator` (many),
 `:library/publisher`, `:library/date`, `:library/language`,
 `:library/format`, `:library/ndc` / `:library/lccn` / `:library/isbn`,
