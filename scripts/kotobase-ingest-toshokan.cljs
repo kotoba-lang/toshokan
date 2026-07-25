@@ -90,21 +90,79 @@
                  (keep (fn [[_ a v _tx op]] (when (= op :add) [a v])))
                  entries)))))
 
+(def ^:const chunk-size
+  "Entity maps per transact. Full-source payloads (100k+ chars) hit
+   kotobase edge 503/error-1102. Prefer small chunks + cool-down retry."
+  15)
+
+(defn- sleep [ms]
+  (js/Promise. (fn [res _] (js/setTimeout res ms))))
+
+(defn- partition-all [n coll]
+  (loop [xs (vec coll) acc []]
+    (if (empty? xs)
+      acc
+      (recur (subvec xs (min n (count xs)))
+             (conj acc (subvec xs 0 (min n (count xs))))))))
+
+(defn- transact-chunk! [source chunk idx total]
+  (let [tx-edn (pr-str (vec chunk))]
+    (-> (client/transact c db-name tx-edn {:retry? true})
+        (.then (fn [res]
+                 (println "OK  " source " chunk" (inc idx) "/" total
+                          " n=" (count chunk)
+                          " datom_count=" (.-datom_count res))
+                 {:ok true :datoms (.-datom_count res)}))
+        (.catch
+         (fn [e]
+           ;; one cool-down retry for transient edge 503/1102
+           (println "RETRY" source "chunk" (inc idx) (.-message e))
+           (-> (sleep 3000)
+               (.then (fn [_]
+                        (client/transact c db-name tx-edn {:retry? true})))
+               (.then (fn [res]
+                        (println "OK  " source " chunk" (inc idx) "/" total
+                                 " n=" (count chunk)
+                                 " datom_count=" (.-datom_count res)
+                                 " (after retry)")
+                        {:ok true :datoms (.-datom_count res)}))
+               (.catch (fn [e2]
+                         (println "FAIL" source "chunk" (inc idx)
+                                  (.-message e2))
+                         {:ok false :error (.-message e2)}))))))))
+
 (defn ingest-source! [source]
   (let [journal (read-journal source)]
     (if (empty? journal)
       (do (println "SKIP" source "(no journal / empty)")
           (js/Promise.resolve {:source source :ok true :entities 0}))
       (let [tx-data (build-tx-data source journal)
-            tx-edn (pr-str tx-data)]
-        (-> (client/transact c db-name tx-edn {:retry? true})
-            (.then (fn [res]
-                     (println "OK  " source " entities=" (count tx-data)
-                              " datom_count=" (.-datom_count res))
-                     {:source source :ok true :entities (count tx-data)}))
-            (.catch (fn [e]
-                      (println "FAIL" source (.-message e))
-                      {:source source :ok false :error (.-message e)})))))))
+            chunks (partition-all chunk-size tx-data)
+            total (count chunks)]
+        (println "INGEST" source "entities=" (count tx-data)
+                 "chunks=" total "chunk-size=" chunk-size)
+        (-> (reduce
+             (fn [chain-p [i chunk]]
+               (.then chain-p
+                      (fn [acc]
+                        (-> (transact-chunk! source chunk i total)
+                            (.then (fn [r]
+                                     (-> (sleep 400)
+                                         (.then (fn [_] (conj acc r))))))))))
+             (js/Promise.resolve [])
+             (map-indexed vector chunks))
+            (.then
+             (fn [rs]
+               (let [failed (filter (complement :ok) rs)
+                     datoms (reduce + 0 (map #(or (:datoms %) 0) rs))]
+                 (if (seq failed)
+                   (do (println "FAIL" source "partial"
+                                (- total (count failed)) "/" total "chunks ok")
+                       {:source source :ok false :entities (count tx-data)
+                        :error (:error (first failed))})
+                   (do (println "OK  " source " entities=" (count tx-data)
+                                " total_datoms≈" datoms)
+                       {:source source :ok true :entities (count tx-data)}))))))))))
 
 (defn run-sequential [sources]
   (reduce (fn [chain-p source]
