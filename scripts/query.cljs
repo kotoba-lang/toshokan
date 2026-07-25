@@ -15,11 +15,18 @@
   (:require ["node:fs" :as fs]
             ["node:path" :as path]
             [clojure.string :as str]
-            [cljs.reader :as edn]
-            ["datascript" :as ds-mod]))
+            [cljs.reader :as edn]))
 
-(def ds (or (.-default ds-mod) ds-mod))
 (def journal-dir (path/join "80-data" "public"))
+
+(defn- load-ds []
+  (try
+    (let [mod (js/require "datascript")]
+      (or (.-default mod) mod))
+    (catch :default e
+      (println "datascript not installed (npm i datascript) — q command unavailable:"
+               (.-message e))
+      nil)))
 
 (defn- journal-files []
   (if (fs/existsSync journal-dir)
@@ -42,26 +49,29 @@
     (str k)))
 
 (defn- build-db []
-  (let [by-entity (group-by first (quads))
-        entities
-        (map-indexed
-         (fn [i [entity entries]]
-           (let [obj (js-obj)]
-             (aset obj ":db/id" (- (inc i)))
-             (aset obj "library/entity" (str entity))
-             (doseq [[_ a v _ op] entries]
-               (when (= op :add)
-                 (let [attr (kw->attr a)
-                       prev (aget obj attr)]
-                   (cond
-                     (nil? prev) (aset obj attr v)
-                     (array? prev) (.push prev v)
-                     :else (aset obj attr #js [prev v])))))
-             obj))
-         by-entity)
-        conn (.create_conn ds (js-obj))]
-    (.transact ds conn (into-array entities))
-    (.db ds conn)))
+  (let [ds (load-ds)]
+    (when-not ds
+      (js/process.exit 1))
+    (let [by-entity (group-by first (quads))
+          entities
+          (map-indexed
+           (fn [i [entity entries]]
+             (let [obj (js-obj)]
+               (aset obj ":db/id" (- (inc i)))
+               (aset obj "library/entity" (str entity))
+               (doseq [[_ a v _ op] entries]
+                 (when (= op :add)
+                   (let [attr (kw->attr a)
+                         prev (aget obj attr)]
+                     (cond
+                       (nil? prev) (aset obj attr v)
+                       (array? prev) (.push prev v)
+                       :else (aset obj attr #js [prev v])))))
+               obj))
+           by-entity)
+          conn (.create_conn ds (js-obj))]
+      (.transact ds conn (into-array entities))
+      (.db ds conn))))
 
 (defn cmd-stats []
   (let [qs (quads)
@@ -126,9 +136,9 @@
                     (when creator (str " / " creator)))))))
 
 (defn cmd-q [qstr]
-  ;; datascript.js expects a query *string* or a plain JS object; pass the
-  ;; EDN form as a string for robustness under nbb.
-  (let [db (build-db)
+  (let [ds (load-ds)
+        _ (when-not ds (js/process.exit 1))
+        db (build-db)
         res (.q ds qstr db)]
     (println (pr-str (js->clj res)))))
 
