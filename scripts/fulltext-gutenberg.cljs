@@ -170,25 +170,48 @@
                {:ok true :id (:gutenberg-id fields) :bytes (:bytes body)
                 :title (:title fields)})))))))
 
-(defn search-books [q limit]
-  (-> (fetch-json (str gutendex "?search=" (js/encodeURIComponent q)
-                       "&copyright=false"))
-      (.then (fn [resp]
-               (->> (:results resp)
-                    (remove :copyright)
-                    (take limit)
-                    vec)))))
+(defn search-books
+  "Fetch public-domain gutendex hits for q. Pulls a larger page than `limit`
+   so callers can skip already-held ids and still fill the requested quota."
+  [q limit]
+  (let [page-size (max 32 (* 4 (or limit 2)))]
+    (-> (fetch-json (str gutendex "?search=" (js/encodeURIComponent q)
+                         "&copyright=false"))
+        (.then (fn [resp]
+                 (->> (:results resp)
+                      (remove :copyright)
+                      (take page-size)
+                      vec))))))
 
 (defn fetch-book-by-id [id]
   (fetch-json (str gutendex id)))
+
+(defn- cjk-query?
+  "Gutenberg has near-zero CJK catalog hits; skip pure CJK seed strings."
+  [q]
+  (boolean (re-find #"[\u3040-\u30ff\u3400-\u9fff]" (str q))))
 
 (defn- seeds-from-file []
   (let [m (try (edn/read-string (fs/readFileSync "seeds.edn" "utf8"))
                (catch :default _ {:seeds []}))]
     (->> (:seeds m)
+         ;; hand seeds first (same schedule discipline as daemon catalog)
+         (remove :grown-from)
          (map :query)
          (remove str/blank?)
+         (remove cjk-query?)
          vec)))
+
+(defn- rotate-take
+  "Round-robin window over qs so --from-seeds does not forever re-query the
+   first 8 classics we already hold (was the main fulltext stall)."
+  [qs n offset]
+  (let [m (count qs)]
+    (if (or (zero? m) (zero? n))
+      []
+      (let [start (mod (or offset 0) m)]
+        (vec (for [i (range (min n m))]
+               (nth qs (mod (+ start i) m))))))))
 
 (defn- parse-args [argv]
   (loop [xs argv acc {:limit 2 :from-seeds? false :seeds [] :ids []}]
@@ -222,13 +245,24 @@
                       (map-indexed vector argv))
                 2)
         opts (parse-args (drop (inc idx) argv))
-        seed-qs (cond-> (:seeds opts)
-                  (:from-seeds? opts) (into (take 8 (seeds-from-file))))
+        known (known-ids)
+        ;; Offset rotation by how many fulltexts we already hold so each tick
+        ;; advances the seed window without needing extra state.
+        seed-offset (count known)
+        file-seeds (when (:from-seeds? opts) (seeds-from-file))
+        seed-qs (cond-> (vec (:seeds opts))
+                  (seq file-seeds)
+                  (into (rotate-take file-seeds 8 seed-offset)))
         seed-qs (if (and (empty? seed-qs) (empty? (:ids opts)))
                   ["Pride and Prejudice" "Iliad" "Origin of Species"
-                   "Romeo and Juliet" "Divine Comedy"]
-                  seed-qs)]
-    (println "[fulltext] start" (pr-str (assoc opts :resolved-seeds seed-qs)))
+                   "Romeo and Juliet" "Divine Comedy" "Moby Dick"
+                   "Frankenstein" "Don Quixote" "Candide" "Beowulf"]
+                  seed-qs)
+        want (or (:limit opts) 1)]
+    (println "[fulltext] start"
+             (pr-str (assoc opts :resolved-seeds seed-qs
+                            :known-count (count known)
+                            :seed-offset seed-offset)))
     (-> (run-sequential
          (concat
           (for [id (:ids opts)]
@@ -237,12 +271,20 @@
                   (.then ingest-book!))))
           (for [q seed-qs]
             (fn []
-              (-> (search-books q (:limit opts))
+              (-> (search-books q want)
                   (.then (fn [books]
-                           (println "[fulltext] search" (pr-str q)
-                                    "hits=" (count books))
-                           (run-sequential
-                            (map (fn [b] (fn [] (ingest-book! b))) books))))
+                           (let [fresh (->> books
+                                            (remove #(contains? known (str (:id %))))
+                                            (take want)
+                                            vec)]
+                             (println "[fulltext] search" (pr-str q)
+                                      "hits=" (count books)
+                                      "fresh=" (count fresh))
+                             (if (seq fresh)
+                               (run-sequential
+                                (map (fn [b] (fn [] (ingest-book! b))) fresh))
+                               (js/Promise.resolve
+                                [{:ok false :reason :all-held-or-empty}])))))
                   (.then (fn [rs] {:query q :results rs})))))))
         (.then
          (fn [summary]
