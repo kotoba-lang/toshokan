@@ -39,15 +39,41 @@
    "nb-no" {:search (fn [q n] (nb-no/search q :max-records n)) :->quads nb-no/->quads}
    "iccu-it" {:search (fn [q n] (iccu-it/search q :max-records n)) :->quads iccu-it/->quads}})
 
+(defn shape-query
+  "Free-text seed → source-native query. Mirrors daemon.cljs so CLI harvest
+   of free-text terms (e.g. bnf \"Balzac\") does not return empty results.
+   Already-shaped CQL/SRU is left alone."
+  [source q]
+  (let [q (str/trim (str q))]
+    (if (or (str/includes? q "bib.anywhere")
+            (str/includes? q "title=")
+            (str/includes? q "creator=")
+            (str/starts-with? q "WOE="))
+      q
+      (case source
+        "ndl" (str "title=\"" q "\" or creator=\"" q "\"")
+        "dnb" (str "WOE=" q)
+        "bnf" (str "bib.anywhere all \"" q "\"")
+        "kb-nl" q
+        "libris-se" q
+        "nb-no" q
+        "iccu-it" q
+        "loc" q
+        "korea-nl" q
+        q))))
+
 (defn -main [source-name query max-records]
   (if-let [{:keys [search ->quads]} (get sources source-name)]
-    (let [journal-path (path/join "80-data" "public" (str source-name ".journal.edn"))
+    (let [shaped (shape-query source-name query)
+          journal-path (path/join "80-data" "public" (str source-name ".journal.edn"))
           existing (quad/read-journal journal-path)
           tx (quad/next-tx existing)
           retrieved-at (.toISOString (js/Date.))]
-      (-> (search query (or max-records 20))
+      (when (not= shaped query)
+        (println "shaped query:" (pr-str query) "->" (pr-str shaped)))
+      (-> (search shaped (or max-records 20))
           (.then (fn [recs]
-                   (println "fetched" (count recs) "records from" source-name "for query" (pr-str query))
+                   (println "fetched" (count recs) "records from" source-name "for query" (pr-str shaped))
                    (let [new-quads (into [] (mapcat #(->quads tx retrieved-at %)) recs)]
                      (quad/append-journal! journal-path new-quads)
                      (println "wrote" (count new-quads) "quads (tx" tx ") to" journal-path))))
@@ -69,5 +95,5 @@
   (if (and source-name query)
     (-main source-name query (some-> max-str js/parseInt))
     (do
-      (println "usage: harvest.cljs <ndl|loc|korea-nl> \"<query>\" [max-records]")
+      (println "usage: harvest.cljs <ndl|loc|dnb|bnf|kb-nl|libris-se|nb-no|iccu-it|korea-nl> \"<query>\" [max-records]")
       (js/process.exit 1))))
