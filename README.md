@@ -14,6 +14,46 @@ This is a metadata-only project: title / creator / publisher / date /
 identifiers / subject. It never harvests full text or digitized page
 images, and never bypasses paywalls or access controls.
 
+## Self-growing resident loop (2026-07-25, ADR-2607255100)
+
+The repo now grows itself on a schedule instead of only via manual
+`scripts/harvest.cljs` one-shots:
+
+| file | role |
+|---|---|
+| `seeds.edn` | query seed list (hand-editable; daemon also appends grown seeds) |
+| `scripts/daemon.cljs` | one tick: harvest → dedupe → journal append → seed grow → optional git push + kotobase ingest |
+| `state.edn` | cursor / exhausted pairs (daemon-managed) |
+| `scripts/query.cljs` | local DataScript query over journals |
+| `deploy/com.kotoba-lang.toshokan-tick.plist` | macOS LaunchAgent for murakumo-fleet host residency |
+
+```bash
+# one tick (harvest only)
+nbb --classpath src scripts/daemon.cljs --once
+
+# one tick + git push + kotobase.net fold (what LaunchAgent runs)
+nbb --classpath src scripts/daemon.cljs --once --push --ingest
+
+# local query surface
+nbb --classpath src scripts/query.cljs stats
+nbb --classpath src scripts/query.cljs sample 10
+nbb --classpath src scripts/query.cljs q \
+  '[:find ?t :where [?e "library/title" ?t]]'
+```
+
+Residency on the murakumo fleet host is a LaunchAgent (same class as
+`com.gftd.fleet-ci-murakumo-tick` / `com.gftd.itonami-qwen36-tick`), not a
+WASM `on-tick` guest yet — that waits on ADR-2607252400 CID capabilities.
+`RunAtLoad` + `StartInterval=21600` (6h). Install:
+
+```bash
+cp deploy/com.kotoba-lang.toshokan-tick.plist ~/Library/LaunchAgents/
+# ensure ~/.gftd/run-toshokan-tick.cljs exists (wrapper cds to TOSHOKAN_ROOT)
+launchctl bootout gui/$(id -u)/com.kotoba-lang.toshokan-tick 2>/dev/null || true
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kotoba-lang.toshokan-tick.plist
+launchctl kickstart -k gui/$(id -u)/com.kotoba-lang.toshokan-tick
+```
+
 ## Sources
 
 | source | status | endpoint | auth |

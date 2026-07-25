@@ -49,10 +49,14 @@
        (map parse-result)))
 
 (defn search
-  "Returns a JS Promise of a seq of field-maps for `query` (free text)."
-  [query & {:keys [count] :or {count 20}}]
+  "Returns a JS Promise of a seq of field-maps for `query` (free text).
+
+  Optional `:page` (1-based, mapped to loc.gov `sp=`) pages deeper so the
+  resident daemon can walk past the first result page."
+  [query & {:keys [count page] :or {count 20 page 1}}]
   (-> (js/fetch (str search-endpoint "?q=" (js/encodeURIComponent query)
-                     "&fo=json&c=" count)
+                     "&fo=json&c=" count
+                     "&sp=" (or page 1))
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}})
       (.then (fn [^js r]
                (if (.-ok r)
