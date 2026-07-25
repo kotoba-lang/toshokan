@@ -54,7 +54,9 @@
       sk)))
 
 (def sk (load-or-create-identity!))
-(def c (client/make-client {:endpoint "https://backend.kotobase.net"
+;; Edge is kotobase.net (cf-wasm). backend.kotobase.net rejects direct
+;; client writes with 401 "reachable only through the kotobase.net edge".
+(def c (client/make-client {:endpoint "https://kotobase.net"
                              :operator-did "did:web:kotobase.net"
                              :secret-key sk}))
 (def db-name "toshokan-library-catalog")
