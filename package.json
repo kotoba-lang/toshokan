@@ -1,0 +1,8 @@
+{
+  "name": "toshokan",
+  "private": true,
+  "description": "National library bibliographic harvest + self-growing resident daemon",
+  "dependencies": {
+    "datascript": "1.6.5"
+  }
+}

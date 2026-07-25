@@ -92,13 +92,17 @@
 
 (defn search
   "Returns a JS Promise of a seq of field-maps for `query` (SRU CQL, e.g.
-  `(str \"title=\\\"\" q \"\\\"\")`)."
-  [query & {:keys [max-records] :or {max-records 20}}]
+  `(str \"title=\\\"\" q \"\\\"\")`).
+
+  Optional `:start-record` (1-based SRU startRecord) pages deeper into a result
+  set so the resident daemon can self-grow past the first page."
+  [query & {:keys [max-records start-record] :or {max-records 20 start-record 1}}]
   (-> (js/fetch (str sru-endpoint
                      "?operation=searchRetrieve&version=1.2"
                      "&query=" (js/encodeURIComponent query)
                      "&recordSchema=dcndl"
-                     "&maximumRecords=" max-records)
+                     "&maximumRecords=" max-records
+                     "&startRecord=" (or start-record 1))
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}})
       (.then (fn [^js r]
                (if (.-ok r)
