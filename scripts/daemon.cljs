@@ -9,7 +9,9 @@
 ;; 5. --ingest なら kotobase-ingest-toshokan.cljs で backend.kotobase.net へ fold
 ;;
 ;; ## 何をしないか
-;; - 全文・ページ画像は取らない（metadata-only 不変条件）
+;; - 著作権あり全文・ページ画像は取らない
+;; - 公開ドメイン全文のみ `--fulltext` で Project Gutenberg (copyright:false)
+;;   を fulltext/ に annex 保存する（それ以外の全文は禁止）
 ;; - bot 検出回避・非公式スクレイパー・CAPTCHA 突破はしない
 ;; - ソース API への高並列はしない（順次 + sleep）
 ;;
@@ -21,7 +23,8 @@
 ;; Usage (repo root):
 ;;   nbb --classpath src scripts/daemon.cljs --once
 ;;   nbb --classpath src scripts/daemon.cljs --once --push --ingest
-;;   nbb --classpath src scripts/daemon.cljs --interval 21600 --push --ingest
+;;   nbb --classpath src scripts/daemon.cljs --once --fulltext --push --ingest
+;;   nbb --classpath src scripts/daemon.cljs --interval 21600 --push --ingest --fulltext
 
 (ns daemon
   (:require ["node:fs" :as fs]
@@ -260,19 +263,36 @@
             :fetched 0 :new 0 :quads 0 :records [] :page-exhausted? false
             :failed? true :error (.-message e)})))))
 
+(defn- fulltext-tick!
+  "One Project Gutenberg public-domain fulltext pull (bodies → fulltext/
+   annex path; metadata → gutenberg.journal.edn). Only copyright:false."
+  []
+  (println "[daemon] fulltext-gutenberg tick")
+  (zero? (sh-status "nbb" "--classpath" "src"
+                    "scripts/fulltext-gutenberg.cljs"
+                    "--from-seeds" "--limit" "1")))
+
 (defn- git-push!
-  "Commit journals/seeds/state and push so the remote repo self-grows."
+  "Commit journals/seeds/state/fulltext pointers so the remote repo self-grows.
+   Fulltext *bodies* are annex content; git only gets pointers after datalad save."
   [summary]
   (println "[daemon] git commit + push:" summary)
-  (and (sh-ok? "git" "add" "80-data/public" "seeds.edn" "state.edn")
-       ;; allow empty (nothing staged) without failing the tick
-       (let [st (sh-status "git" "diff" "--cached" "--quiet")]
-         (if (zero? st)
-           (do (println "[daemon]   nothing to commit") true)
-           (and (sh-ok? "git" "commit" "-m" summary)
-                ;; LaunchAgent env can lack a usable ssh on PATH; pin the binary.
-                (sh-ok? "git" "-c" "core.sshCommand=/usr/bin/ssh"
-                        "push" "origin" "HEAD"))))))
+  ;; Prefer datalad save when the dataset is annex-aware so fulltext/** is
+  ;; pointerized; fall back to plain git add for non-annex clones.
+  (let [has-datalad? (fs/existsSync ".datalad")
+        staged?
+        (if has-datalad?
+          (do (sh-status "datalad" "save" "-m" summary
+                         "80-data/public" "seeds.edn" "state.edn" "fulltext")
+              true)
+          (and (sh-ok? "git" "add" "80-data/public" "seeds.edn" "state.edn"
+                       "fulltext" ".gitattributes")
+               (let [st (sh-status "git" "diff" "--cached" "--quiet")]
+                 (if (zero? st)
+                   (do (println "[daemon]   nothing to commit") false)
+                   (sh-ok? "git" "commit" "-m" summary)))))]
+    (when staged?
+      (sh-ok? "git" "-c" "core.sshCommand=/usr/bin/ssh" "push" "origin" "HEAD"))))
 
 (defn- kotobase-ingest!
   []
@@ -288,16 +308,24 @@
                       "scripts/kotobase-ingest-toshokan.cljs"))))
 
 (defn tick!
-  [{:keys [push? ingest?]}]
+  [{:keys [push? ingest? fulltext?]}]
   (let [seeds-data (load-seeds)
         st (load-state)
         policy (:policy seeds-data)
-        work (next-work st seeds-data)]
+        work (next-work st seeds-data)
+        ;; Every other tick (or when no catalog work) also pull public-domain text
+        do-fulltext? (and fulltext?
+                          (or (nil? work)
+                              (even? (or (:ticks st 0) 0))))]
     (if-not work
-      (do (println "[daemon] no remaining work (all pairs exhausted or no seeds)")
+      (do (println "[daemon] no remaining catalog work")
+          (when do-fulltext? (fulltext-tick!))
           (save-state! (assoc st :last-tick (.toISOString (js/Date.))
                               :ticks (inc (:ticks st 0))))
-          {:ok true :idle? true})
+          (when push?
+            (git-push! (str "toshokan: idle tick fulltext=" do-fulltext?)))
+          (when ingest? (kotobase-ingest!))
+          (js/Promise.resolve {:ok true :idle? true :fulltext? do-fulltext?}))
       (-> (harvest-one! work policy)
           (.then
            (fn [r]
@@ -322,13 +350,15 @@
                (save-state! st2)
                (when (not= seeds2 seeds-data)
                  (save-seeds! seeds2))
+               (when do-fulltext? (fulltext-tick!))
                (when push?
                  (git-push!
                   (str "toshokan: harvest " (:source r)
                        " seed=" (:seed-id r)
                        " new=" (:new r)
-                       " entities≈" (entity-count (:source r)))))
-               (when (and ingest? (pos? (:new r)))
+                       " entities≈" (entity-count (:source r))
+                       (when do-fulltext? " +fulltext"))))
+               (when (and ingest? (or (pos? (:new r)) do-fulltext?))
                  (kotobase-ingest!))
                (println "[daemon] tick done"
                         (pr-str (select-keys r [:source :seed-id :page :fetched :new :quads :page-exhausted? :failed?])))
@@ -339,6 +369,7 @@
     {:once? (contains? args "--once")
      :push? (contains? args "--push")
      :ingest? (contains? args "--ingest")
+     :fulltext? (contains? args "--fulltext")
      :interval (let [i (.indexOf (clj->js argv) "--interval")
                      v (when (and (>= i 0) (< (inc i) (count argv)))
                          (js/parseInt (nth argv (inc i)) 10))]
