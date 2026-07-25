@@ -10,60 +10,9 @@ derived, rebuildable index over it) and
 research, and the real end-to-end verification numbers are in
 [ADR-2607199900](https://github.com/com-junkawasaki/root/blob/main/90-docs/adr/2607199900-toshokan-national-library-catalog-ingestion.edn).
 
-**Default plane is metadata-only** (title / creator / publisher / date /
-identifiers / subject from national library catalogs). It never bypasses
-paywalls or access controls.
-
-**Public-domain full text** is a second plane (ADR-2607255100 fulltext
-addendum): Project Gutenberg works with gutendex `copyright: false` only.
-Bodies live under `fulltext/gutenberg/<id>/` as **git-annex** content (B2);
-metadata quads live in `80-data/public/gutenberg.journal.edn`. In-copyright
-full text is never stored.
-
-## Self-growing resident loop (2026-07-25, ADR-2607255100)
-
-The repo now grows itself on a schedule instead of only via manual
-`scripts/harvest.cljs` one-shots:
-
-| file | role |
-|---|---|
-| `seeds.edn` | query seed list (hand-editable; daemon also appends grown seeds) |
-| `scripts/daemon.cljs` | one tick: harvest → dedupe → journal append → seed grow → optional fulltext + push + kotobase ingest |
-| `state.edn` | cursor / exhausted pairs (daemon-managed) |
-| `scripts/query.cljs` | local DataScript query over journals |
-| `scripts/fulltext-gutenberg.cljs` | public-domain full text (Gutenberg / gutendex) |
-| `fulltext/gutenberg/` | annex bodies + per-work meta.edn |
-| `deploy/com.kotoba-lang.toshokan-tick.plist` | macOS LaunchAgent for murakumo-fleet host residency |
-
-```bash
-# one tick (catalog harvest only)
-nbb --classpath src scripts/daemon.cljs --once
-
-# one tick + public-domain fulltext + git push + kotobase fold (LaunchAgent)
-nbb --classpath src scripts/daemon.cljs --once --fulltext --push --ingest
-
-# fulltext only (a few classics / seed-driven)
-nbb --classpath src scripts/fulltext-gutenberg.cljs --id 1342
-nbb --classpath src scripts/fulltext-gutenberg.cljs --from-seeds --limit 1
-
-# local query surface
-nbb --classpath src scripts/query.cljs stats
-nbb --classpath src scripts/query.cljs sample 10
-nbb --classpath src scripts/query.cljs fulltext
-```
-
-Residency on the murakumo fleet host is a LaunchAgent (same class as
-`com.gftd.fleet-ci-murakumo-tick` / `com.gftd.itonami-qwen36-tick`), not a
-WASM `on-tick` guest yet — that waits on ADR-2607252400 CID capabilities.
-`RunAtLoad` + `StartInterval=21600` (6h). Install:
-
-```bash
-cp deploy/com.kotoba-lang.toshokan-tick.plist ~/Library/LaunchAgents/
-# ensure ~/.gftd/run-toshokan-tick.cljs exists (wrapper cds to TOSHOKAN_ROOT)
-launchctl bootout gui/$(id -u)/com.kotoba-lang.toshokan-tick 2>/dev/null || true
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kotoba-lang.toshokan-tick.plist
-launchctl kickstart -k gui/$(id -u)/com.kotoba-lang.toshokan-tick
-```
+This is a metadata-only project: title / creator / publisher / date /
+identifiers / subject. It never harvests full text or digitized page
+images, and never bypasses paywalls or access controls.
 
 ## Sources
 
@@ -173,6 +122,15 @@ NODE_PATH="<path-to>/kotoba-lang/kotobase-client/node_modules" \
 
 # tests (fixture-based, no live network)
 npx nbb --classpath "src:test" scripts/run-tests.cljs
+
+# one Kotoba policy test definition, executed on KIR/JVM + restricted ESM + Wasm
+cd ../compiler
+clojure -M:run test ../toshokan/src/toshokan/portable_effect.kotoba
+
+# build the restricted ESM policy imported by the workerd adapter
+cd ../toshokan
+scripts/build-portable-effect.sh
+node workerd/portable-effect-host.test.mjs
 ```
 
 ## Schema
