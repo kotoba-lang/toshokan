@@ -270,7 +270,9 @@
          (if (zero? st)
            (do (println "[daemon]   nothing to commit") true)
            (and (sh-ok? "git" "commit" "-m" summary)
-                (sh-ok? "git" "push" "origin" "HEAD"))))))
+                ;; LaunchAgent env can lack a usable ssh on PATH; pin the binary.
+                (sh-ok? "git" "-c" "core.sshCommand=/usr/bin/ssh"
+                        "push" "origin" "HEAD"))))))
 
 (defn- kotobase-ingest!
   []
