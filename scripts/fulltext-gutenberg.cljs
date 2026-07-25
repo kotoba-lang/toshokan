@@ -252,7 +252,7 @@
         file-seeds (when (:from-seeds? opts) (seeds-from-file))
         seed-qs (cond-> (vec (:seeds opts))
                   (seq file-seeds)
-                  (into (rotate-take file-seeds 8 seed-offset)))
+                  (into (rotate-take file-seeds 24 seed-offset)))
         seed-qs (if (and (empty? seed-qs) (empty? (:ids opts)))
                   ["Pride and Prejudice" "Iliad" "Origin of Species"
                    "Romeo and Juliet" "Divine Comedy" "Moby Dick"
