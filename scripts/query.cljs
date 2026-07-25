@@ -70,14 +70,31 @@
                 (for [[e a v] qs
                       :when (= a :library/source)]
                   v))
-        titles (count (filter #(= (second %) :library/title) qs))]
+        titles (count (filter #(= (second %) :library/title) qs))
+        ft (count (filter #(= (second %) :library/fulltext-path) qs))]
     (println (str "quads=" (count qs)
                   " entities=" (count ents)
                   " title-attrs=" titles
+                  " fulltext-bodies=" ft
                   " journals=" (count (journal-files))))
     (println "\n-- by :library/source --")
     (doseq [[k v] (sort-by val > by-src)]
       (println (str "  " k ": " v)))))
+
+(defn cmd-fulltext []
+  (let [by-e (group-by first (quads))
+        rows (for [[entity entries] by-e
+                   :let [m (into {} (keep (fn [[_ a v _ op]]
+                                            (when (= op :add) [a v]))
+                                          entries))]
+                   :when (:library/fulltext-path m)]
+               m)]
+    (println (str "fulltext works=" (count rows)))
+    (doseq [m (sort-by :library/title rows)]
+      (println (str "  [" (:library/gutenberg-id m) "] "
+                    (:library/title m)
+                    "  bytes=" (:library/fulltext-bytes m)
+                    "  " (:library/fulltext-path m))))))
 
 (defn cmd-sources []
   (doseq [p (journal-files)]
@@ -121,10 +138,11 @@
       "stats" (cmd-stats)
       "sources" (cmd-sources)
       "sample" (cmd-sample (second args))
+      "fulltext" (cmd-fulltext)
       "q" (if-let [q (second args)]
             (cmd-q q)
             (do (println "usage: query.cljs q '<datalog>'") (js/process.exit 1)))
-      (do (println "usage: query.cljs stats|sources|sample [N]|q '<datalog>'")
+      (do (println "usage: query.cljs stats|sources|sample [N]|fulltext|q '<datalog>'")
           (js/process.exit 1)))))
 
 (let [argv (js->clj js/process.argv)
