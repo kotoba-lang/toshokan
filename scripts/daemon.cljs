@@ -144,19 +144,35 @@
 (defn- save-state! [st]
   (write-edn! state-path st "state.edn — daemon managed; do not hand-edit."))
 
+(defn- cjk-query?
+  "True when seed query contains Japanese/CJK script — almost never
+   returns useful hits on non-JP catalogs (loc/dnb/bnf/…)."
+  [q]
+  (boolean (re-find #"[\u3040-\u30ff\u3400-\u9fff]" (str q))))
+
 (defn- work-pairs
-  "Cartesian seed × source so every catalog advances, not only NDL."
+  "Cartesian seed × source. Hand (non-grown) seeds first so classic
+   authors are not starved behind hundreds of self-grown JP name pairs.
+   CJK grown seeds only pair with ndl (other sources yield empty ticks)."
   [seeds-data]
-  (let [srcs (vec (get-in seeds-data [:policy :sources]))]
-    (vec (for [seed (:seeds seeds-data)
-               src srcs]
+  (let [srcs (vec (get-in seeds-data [:policy :sources]))
+        seeds (:seeds seeds-data)
+        hand (vec (remove :grown-from seeds))
+        grown (vec (filter :grown-from seeds))
+        ordered (into hand grown)]
+    (vec (for [seed ordered
+               src srcs
+               :when (or (not (:grown-from seed))
+                         (not (cjk-query? (:query seed)))
+                         (= src "ndl"))]
            {:seed seed
             :source src
             :seed-id (or (:id seed)
                          (str "q-" (hash (:query seed))))}))))
 
 (defn- next-work
-  "Pick next (source, seed, page) not exhausted. Round-robin over pairs."
+  "Pick next (source, seed, page) not exhausted. Prefer non-exhausted
+   hand-seed pairs; round-robin from cursor."
   [st seeds-data]
   (let [pairs (work-pairs seeds-data)
         n (count pairs)
