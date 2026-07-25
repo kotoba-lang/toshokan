@@ -147,15 +147,15 @@
       (:copyright? fields)
       (do (println "[fulltext] SKIP copyrighted id=" (:gutenberg-id fields)
                    (pr-str (:title fields)))
-          {:ok false :reason :copyright})
+          (js/Promise.resolve {:ok false :reason :copyright}))
 
       (contains? known (:gutenberg-id fields))
       (do (println "[fulltext] SKIP already have id=" (:gutenberg-id fields))
-          {:ok false :reason :duplicate})
+          (js/Promise.resolve {:ok false :reason :duplicate}))
 
       (str/blank? (:text-url fields))
       (do (println "[fulltext] SKIP no plain-text format id=" (:gutenberg-id fields))
-          {:ok false :reason :no-text})
+          (js/Promise.resolve {:ok false :reason :no-text}))
 
       :else
       (-> (fetch-bytes (:text-url fields))
