@@ -267,19 +267,33 @@
                            " new-entities=" (count fresh)
                            " quads=" (count new-quads)
                            " journal-entities≈" (+ (count known) (count fresh))))
-             {:source source
-              :seed-id seed-id
-              :page page
-              :pair-key pair-key
-              :fetched (count recs)
-              :new (count fresh)
-              :quads (count new-quads)
-              :records fresh
-              ;; full page with zero new → page exhausted (all dupes or empty)
-              :page-exhausted? (or (zero? (count recs))
-                                   (< (count recs) n)
-                                   (and (pos? (count recs)) (zero? (count fresh))))
-              :failed? false})))
+             ;; Exhaust only when the catalog has no further pages for this
+             ;; query: empty result or short page. A *full* page of all
+             ;; duplicates must advance to page+1 (not mark exhausted) —
+             ;; otherwise seeds stall forever after one saturated page
+             ;; (real: batch73/74 cursor stuck; loc/bnf hand seeds frozen
+             ;; after first all-dupes page). Cap at max-page to avoid
+             ;; infinite crawl of fully-known catalogs.
+             (let [full-page? (>= (count recs) n)
+                   all-dups? (and (pos? (count recs)) (zero? (count fresh)))
+                   max-page (or (:max-page-per-seed policy) 40)
+                   hit-max? (>= page max-page)
+                   exhausted? (or (zero? (count recs))
+                                  (not full-page?)
+                                  (and all-dups? hit-max?))]
+               (when (and all-dups? full-page? (not hit-max?))
+                 (println (str "[daemon]   full-page all-dups → advance to page "
+                               (inc page) " (not exhausted)")))
+               {:source source
+                :seed-id seed-id
+                :page page
+                :pair-key pair-key
+                :fetched (count recs)
+                :new (count fresh)
+                :quads (count new-quads)
+                :records fresh
+                :page-exhausted? exhausted?
+                :failed? false}))))
         (.catch
          (fn [e]
            (println "[daemon]   FAIL" source (.-message e))
