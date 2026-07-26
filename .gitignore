@@ -1,3 +1,5 @@
-node_modules/
-package-lock.json
-scripts/.kotobase-ingest-toshokan-identity.hex
+/scripts/.kotobase-ingest-toshokan-identity.hex
+/.cpcache/
+/.shadow-cljs/
+/node_modules/
+workerd/generated/
