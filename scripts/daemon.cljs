@@ -63,7 +63,12 @@
         "ndl" (str "title=\"" q "\" or creator=\"" q "\"")
         "dnb" (str "WOE=" q)
         "bnf" (str "bib.anywhere all \"" q "\"")
-        "kb-nl" q
+        ;; KB SRU free-text multi-word without quotes returns 0 hits
+        ;; (batch77: "Franz Kafka"→0, "kafka"/ "\"Franz Kafka\""→hits).
+        "kb-nl" (if (or (str/includes? q " ")
+                        (str/includes? q "\""))
+                  (if (str/includes? q "\"") q (str "\"" q "\""))
+                  q)
         "libris-se" q
         "nb-no" q
         "iccu-it" q
