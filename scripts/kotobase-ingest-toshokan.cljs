@@ -90,10 +90,13 @@
                  (keep (fn [[_ a v _tx op]] (when (= op :add) [a v])))
                  entries)))))
 
-(def ^:const chunk-size
+(def ^:const default-chunk-size
   "Entity maps per transact. Full-source payloads (100k+ chars) hit
-   kotobase edge 503/error-1102. Prefer small chunks + cool-down retry."
-  15)
+   kotobase edge 503/error-1102. Prefer small chunks + cool-down retry.
+   2026-07-26: lowered 15→8 after sustained 1102 on every ndl chunk."
+  8)
+
+(def ^:const max-chunk-attempts 4)
 
 (defn- sleep [ms]
   (js/Promise. (fn [res _] (js/setTimeout res ms))))
@@ -107,29 +110,26 @@
 
 (defn- transact-chunk! [source chunk idx total]
   (let [tx-edn (pr-str (vec chunk))]
-    (-> (client/transact c db-name tx-edn {:retry? true})
-        (.then (fn [res]
-                 (println "OK  " source " chunk" (inc idx) "/" total
-                          " n=" (count chunk)
-                          " datom_count=" (.-datom_count res))
-                 {:ok true :datoms (.-datom_count res)}))
-        (.catch
-         (fn [e]
-           ;; one cool-down retry for transient edge 503/1102
-           (println "RETRY" source "chunk" (inc idx) (.-message e))
-           (-> (sleep 3000)
-               (.then (fn [_]
-                        (client/transact c db-name tx-edn {:retry? true})))
-               (.then (fn [res]
-                        (println "OK  " source " chunk" (inc idx) "/" total
-                                 " n=" (count chunk)
-                                 " datom_count=" (.-datom_count res)
-                                 " (after retry)")
-                        {:ok true :datoms (.-datom_count res)}))
-               (.catch (fn [e2]
-                         (println "FAIL" source "chunk" (inc idx)
-                                  (.-message e2))
-                         {:ok false :error (.-message e2)}))))))))
+    ((fn attempt [n]
+       (-> (client/transact c db-name tx-edn {:retry? true})
+           (.then (fn [res]
+                    (println "OK  " source " chunk" (inc idx) "/" total
+                             " n=" (count chunk)
+                             " datom_count=" (.-datom_count res)
+                             (when (> n 1) (str " (attempt " n ")")))
+                    {:ok true :datoms (.-datom_count res)}))
+           (.catch
+            (fn [e]
+              (if (< n max-chunk-attempts)
+                (let [wait (min 30000 (* 2000 n n))]
+                  (println "RETRY" source "chunk" (inc idx)
+                           "attempt" n "/" max-chunk-attempts
+                           "wait" wait "ms" (.-message e))
+                  (-> (sleep wait)
+                      (.then (fn [_] (attempt (inc n))))))
+                (do (println "FAIL" source "chunk" (inc idx) (.-message e))
+                    (js/Promise.resolve {:ok false :error (.-message e)})))))))
+     1)))
 
 (defn ingest-source! [source]
   (let [journal (read-journal source)]
@@ -137,17 +137,17 @@
       (do (println "SKIP" source "(no journal / empty)")
           (js/Promise.resolve {:source source :ok true :entities 0}))
       (let [tx-data (build-tx-data source journal)
-            chunks (partition-all chunk-size tx-data)
+            chunks (partition-all default-chunk-size tx-data)
             total (count chunks)]
         (println "INGEST" source "entities=" (count tx-data)
-                 "chunks=" total "chunk-size=" chunk-size)
+                 "chunks=" total "chunk-size=" default-chunk-size)
         (-> (reduce
              (fn [chain-p [i chunk]]
                (.then chain-p
                       (fn [acc]
                         (-> (transact-chunk! source chunk i total)
                             (.then (fn [r]
-                                     (-> (sleep 400)
+                                     (-> (sleep 800)
                                          (.then (fn [_] (conj acc r))))))))))
              (js/Promise.resolve [])
              (map-indexed vector chunks))
@@ -172,17 +172,38 @@
           (js/Promise.resolve #js [])
           sources))
 
+(defn- parse-source-args [argv]
+  (loop [xs argv out []]
+    (cond
+      (empty? xs) out
+      (= (first xs) "--source")
+      (if (seq (rest xs))
+        (recur (drop 2 xs) (conj out (second xs)))
+        out)
+      :else (recur (rest xs) out))))
+
 (defn -main []
-  (println "ingest identity did:" (:did c))
-  (-> (run-sequential sources)
-      (.then (fn [results]
-               (let [results (js->clj results :keywordize-keys true)
-                     ok (filter :ok results)
-                     failed (remove :ok results)]
-                 (println "=== SUMMARY ===")
-                 (println "total:" (count results) "ok:" (count ok) "failed:" (count failed))
-                 (when (seq failed)
-                   (doseq [f failed] (println " -" (:source f) (:error f)))))))
-      (.catch (fn [e] (println "FATAL:" (.-message e)) (println (.-stack e))))))
+  (let [argv (js->clj js/process.argv)
+        idx (or (some (fn [[i a]]
+                        (when (str/ends-with? a "kotobase-ingest-toshokan.cljs") i))
+                      (map-indexed vector argv))
+                2)
+        only (parse-source-args (drop (inc idx) argv))
+        src-list (if (seq only) only sources)]
+    (println "ingest identity did:" (:did c) "sources=" (pr-str src-list))
+    (-> (run-sequential src-list)
+        (.then (fn [results]
+                 (let [results (js->clj results :keywordize-keys true)
+                       ok (filter :ok results)
+                       failed (remove :ok results)]
+                   (println "=== SUMMARY ===")
+                   (println "total:" (count results) "ok:" (count ok) "failed:" (count failed))
+                   (when (seq failed)
+                     (doseq [f failed] (println " -" (:source f) (:error f)))
+                     (js/process.exit 1)))))
+        (.catch (fn [e]
+                  (println "FATAL:" (.-message e))
+                  (println (.-stack e))
+                  (js/process.exit 1))))))
 
 (-main)
