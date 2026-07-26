@@ -85,9 +85,12 @@
                      (str "https://www.gutenberg.org/ebooks/" id ".txt.utf-8")])]
     (->> (concat utf8 other fallbacks)
          (remove str/blank?)
+         ;; gutendex sometimes lists audio-book "readme" stubs as text/plain
+         (remove #(or (str/includes? (str %) "readme")
+                      (str/includes? (str %) "-readme.")
+                      (str/includes? (str %) ".readme")))
          distinct
          vec)))
-
 (defn- plain-text-url [book]
   (first (plain-text-urls book)))
 
