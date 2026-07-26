@@ -214,6 +214,17 @@
                       (take page-size)
                       vec))))))
 
+(defn browse-books
+  "Page through gutendex popular public-domain catalog (no search query).
+   Used when seed search saturates on already-held classics."
+  [page]
+  (-> (fetch-json (str gutendex "?copyright=false&sort=popular&page="
+                       (max 1 (or page 1))))
+      (.then (fn [resp]
+               (->> (:results resp)
+                    (remove :copyright)
+                    vec)))))
+
 (defn fetch-book-by-id [id]
   (fetch-json (str gutendex id)))
 
@@ -226,11 +237,13 @@
   (let [m (try (edn/read-string (fs/readFileSync "seeds.edn" "utf8"))
                (catch :default _ {:seeds []}))]
     (->> (:seeds m)
-         ;; hand seeds first (same schedule discipline as daemon catalog)
-         (remove :grown-from)
+         ;; Prefer hand seeds, then grown Latin-script queries for long-tail
+         ;; fulltext discovery (grown CJK still skipped by cjk-query?).
+         (sort-by (fn [s] (if (:grown-from s) 1 0)))
          (map :query)
          (remove str/blank?)
          (remove cjk-query?)
+         distinct
          vec)))
 
 (defn- rotate-take
@@ -245,7 +258,7 @@
                (nth qs (mod (+ start i) m))))))))
 
 (defn- parse-args [argv]
-  (loop [xs argv acc {:limit 2 :from-seeds? false :seeds [] :ids []}]
+  (loop [xs argv acc {:limit 2 :from-seeds? false :browse? false :seeds [] :ids []}]
     (if-not (seq xs)
       acc
       (let [[a & more] xs]
@@ -257,41 +270,101 @@
           "--id" (recur (rest more)
                         (update acc :ids conj (first more)))
           "--from-seeds" (recur more (assoc acc :from-seeds? true))
+          "--browse" (recur more (assoc acc :browse? true))
           (recur more acc))))))
 
 (defn- run-sequential [promise-fns]
   (reduce (fn [chain f]
-            (.then chain (fn [acc]
-                           (-> (f)
-                               (.then (fn [r] (conj acc r)))
-                               (.catch (fn [e]
-                                         (println "[fulltext] error" (.-message e))
-                                         (conj acc {:ok false :error (.-message e)})))))))
+            (.then chain
+                   (fn [acc]
+                     (-> (f)
+                         (.then (fn [r] (conj acc r)))
+                         (.catch (fn [e]
+                                   (println "[fulltext] error" (.-message e))
+                                   (conj acc {:ok false :error (.-message e)})))))))
           (js/Promise.resolve [])
           promise-fns))
 
+(defn- count-ok [summary]
+  (->> summary
+       (mapcat (fn [x]
+                 (cond
+                   (and (map? x) (contains? x :ok) (not (contains? x :results))) [x]
+                   (and (map? x) (:results x))
+                   (mapcat (fn [r] (if (sequential? r) r [r])) (:results x))
+                   (sequential? x) x
+                   :else [])))
+       (filter :ok)
+       count))
+
+(defn- browse-fresh!
+  "Walk popular gutendex pages until `want` fresh PD books ingested.
+   Page start rotates within popular range 1–60."
+  [known0 want]
+  (let [start-page (inc (mod (count known0) 60))]
+    (println "[fulltext] browse fallback start-page=" start-page "want=" want)
+    ((fn step [page remaining known acc]
+       (if (or (zero? remaining) (> page (+ start-page 12)))
+         (js/Promise.resolve
+          {:browse true
+           :page-start start-page
+           :page-end page
+           :ok (count (filter :ok acc))
+           :results acc})
+         (-> (browse-books page)
+             (.then
+              (fn [books]
+                (let [fresh (->> books
+                                 (remove #(contains? known (str (:id %))))
+                                 (take remaining)
+                                 vec)]
+                  (println "[fulltext] browse page=" page
+                           "hits=" (count books)
+                           "fresh=" (count fresh)
+                           "remaining=" remaining)
+                  (if (empty? fresh)
+                    (step (inc page) remaining known acc)
+                    (-> (run-sequential
+                         (map (fn [b] (fn [] (ingest-book! b))) fresh))
+                        (.then
+                         (fn [rs]
+                           (let [ok-n (count (filter :ok rs))
+                                 known* (into known
+                                              (keep (fn [r]
+                                                      (when (:ok r)
+                                                        (str (:id r))))
+                                                    rs))]
+                             (step (inc page)
+                                   (max 0 (- remaining ok-n))
+                                   known*
+                                   (into acc rs)))))))))))))
+     start-page want known0 [])))
+
 (defn -main []
   (let [argv (js->clj js/process.argv)
-        idx (or (some (fn [[i a]] (when (str/ends-with? a "fulltext-gutenberg.cljs") i))
+        idx (or (some (fn [[i a]]
+                        (when (str/ends-with? a "fulltext-gutenberg.cljs") i))
                       (map-indexed vector argv))
                 2)
         opts (parse-args (drop (inc idx) argv))
         known (known-ids)
-        ;; Offset rotation by how many fulltexts we already hold so each tick
-        ;; advances the seed window without needing extra state.
         seed-offset (count known)
         file-seeds (when (:from-seeds? opts) (seeds-from-file))
         seed-qs (cond-> (vec (:seeds opts))
                   (seq file-seeds)
                   (into (rotate-take file-seeds 24 seed-offset)))
-        seed-qs (if (and (empty? seed-qs) (empty? (:ids opts)))
+        seed-qs (if (and (empty? seed-qs)
+                         (empty? (:ids opts))
+                         (not (:browse? opts)))
                   ["Pride and Prejudice" "Iliad" "Origin of Species"
                    "Romeo and Juliet" "Divine Comedy" "Moby Dick"
                    "Frankenstein" "Don Quixote" "Candide" "Beowulf"]
                   seed-qs)
-        want (or (:limit opts) 1)]
+        want (or (:limit opts) 1)
+        force-browse? (:browse? opts)]
     (println "[fulltext] start"
-             (pr-str (assoc opts :resolved-seeds seed-qs
+             (pr-str (assoc opts
+                            :resolved-seeds seed-qs
                             :known-count (count known)
                             :seed-offset seed-offset)))
     (-> (run-sequential
@@ -303,23 +376,40 @@
           (for [q seed-qs]
             (fn []
               (-> (search-books q want)
-                  (.then (fn [books]
-                           (let [fresh (->> books
-                                            (remove #(contains? known (str (:id %))))
-                                            (take want)
-                                            vec)]
-                             (println "[fulltext] search" (pr-str q)
-                                      "hits=" (count books)
-                                      "fresh=" (count fresh))
-                             (if (seq fresh)
-                               (run-sequential
-                                (map (fn [b] (fn [] (ingest-book! b))) fresh))
-                               (js/Promise.resolve
-                                [{:ok false :reason :all-held-or-empty}])))))
+                  (.then
+                   (fn [books]
+                     (let [fresh (->> books
+                                      (remove #(contains? known (str (:id %))))
+                                      (take want)
+                                      vec)]
+                       (println "[fulltext] search" (pr-str q)
+                                "hits=" (count books)
+                                "fresh=" (count fresh))
+                       (if (seq fresh)
+                         (run-sequential
+                          (map (fn [b] (fn [] (ingest-book! b))) fresh))
+                         (js/Promise.resolve
+                          [{:ok false :reason :all-held-or-empty}])))))
                   (.then (fn [rs] {:query q :results rs})))))))
         (.then
          (fn [summary]
-           (println "[fulltext] done" (pr-str summary))
-           summary)))))
+           (let [ok-n (count-ok summary)
+                 need-browse?
+                 (or force-browse?
+                     (and (pos? want)
+                          (< ok-n want)
+                          (or (:from-seeds? opts)
+                              (seq seed-qs)
+                              (empty? (:ids opts)))))]
+             (if-not need-browse?
+               (do (println "[fulltext] done" (pr-str summary))
+                   summary)
+               (-> (browse-fresh! known (max 1 (- want ok-n)))
+                   (.then
+                    (fn [br]
+                      (let [out (conj (vec summary) br)]
+                        (println "[fulltext] done" (pr-str out))
+                        out)))))))))))
 
 (-main)
+

@@ -48,19 +48,27 @@
 
 (defn shape-query
   "Free-text seed → source-native query. NDL/SRU sources get a simple CQL
-   title-or-creator form; free-text APIs pass through."
+   title-or-creator form; free-text APIs pass through. Already-shaped CQL
+   (bib.* / title= / WOE=) is left alone so callers can pass native queries."
   [source q]
   (let [q (str/trim (str q))]
-    (case source
-      "ndl" (str "title=\"" q "\" or creator=\"" q "\"")
-      "dnb" (str "WOE=" q)
-      "bnf" (str "bib.anywhere all \"" q "\"")
-      "kb-nl" q
-      "libris-se" q
-      "nb-no" q
-      "iccu-it" q
-      "loc" q
-      q)))
+    (if (or (str/includes? q "bib.anywhere")
+            (str/includes? q "bib.title")
+            (str/includes? q "bib.author")
+            (str/includes? q "title=")
+            (str/includes? q "creator=")
+            (str/starts-with? q "WOE="))
+      q
+      (case source
+        "ndl" (str "title=\"" q "\" or creator=\"" q "\"")
+        "dnb" (str "WOE=" q)
+        "bnf" (str "bib.anywhere all \"" q "\"")
+        "kb-nl" q
+        "libris-se" q
+        "nb-no" q
+        "iccu-it" q
+        "loc" q
+        q))))
 
 (def sources
   {"ndl" {:search (fn [q n page]
@@ -281,12 +289,13 @@
 
 (defn- fulltext-tick!
   "One Project Gutenberg public-domain fulltext pull (bodies → fulltext/
-   annex path; metadata → gutenberg.journal.edn). Only copyright:false."
+   annex path; metadata → gutenberg.journal.edn). Only copyright:false.
+   --browse enables gutendex popular-page fallback when seed search is saturated."
   []
   (println "[daemon] fulltext-gutenberg tick")
   (zero? (sh-status "nbb" "--classpath" "src"
                     "scripts/fulltext-gutenberg.cljs"
-                    "--from-seeds" "--limit" "1")))
+                    "--from-seeds" "--browse" "--limit" "2")))
 
 (defn- git-push!
   "Commit journals/seeds/state/fulltext pointers so the remote repo self-grows.

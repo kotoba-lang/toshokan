@@ -46,6 +46,8 @@
   [source q]
   (let [q (str/trim (str q))]
     (if (or (str/includes? q "bib.anywhere")
+            (str/includes? q "bib.title")
+            (str/includes? q "bib.author")
             (str/includes? q "title=")
             (str/includes? q "creator=")
             (str/starts-with? q "WOE="))
