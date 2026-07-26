@@ -270,21 +270,26 @@
                            " journal-entities≈" (+ (count known) (count fresh))))
              ;; Exhaust only when the catalog has no further pages for this
              ;; query: empty result or short page. A *full* page of all
-             ;; duplicates must advance to page+1 (not mark exhausted) —
-             ;; otherwise seeds stall forever after one saturated page
-             ;; (real: batch73/74 cursor stuck; loc/bnf hand seeds frozen
-             ;; after first all-dupes page). Cap at max-page to avoid
-             ;; infinite crawl of fully-known catalogs.
+             ;; duplicates must advance (not mark exhausted) — otherwise
+             ;; seeds stall forever after one saturated page (batch73/74).
+             ;; Skip-ahead on all-dups (default +3) so classics do not burn
+             ;; one tick per already-known page (batch75 shakespeare/austen).
+             ;; Cap at max-page to avoid infinite crawl of fully-known catalogs.
              (let [full-page? (>= (count recs) n)
                    all-dups? (and (pos? (count recs)) (zero? (count fresh)))
-                   max-page (or (:max-page-per-seed policy) 40)
+                   max-page (or (:max-page-per-seed policy) 30)
+                   skip (or (:all-dups-page-skip policy) 3)
                    hit-max? (>= page max-page)
                    exhausted? (or (zero? (count recs))
                                   (not full-page?)
-                                  (and all-dups? hit-max?))]
+                                  (and all-dups? hit-max?))
+                   next-page (cond
+                               exhausted? page
+                               all-dups? (min max-page (+ page skip))
+                               :else (inc page))]
                (when (and all-dups? full-page? (not hit-max?))
-                 (println (str "[daemon]   full-page all-dups → advance to page "
-                               (inc page) " (not exhausted)")))
+                 (println (str "[daemon]   full-page all-dups → skip to page "
+                               next-page " (not exhausted)")))
                {:source source
                 :seed-id seed-id
                 :page page
@@ -294,23 +299,27 @@
                 :quads (count new-quads)
                 :records fresh
                 :page-exhausted? exhausted?
+                :next-page next-page
                 :failed? false}))))
         (.catch
          (fn [e]
            (println "[daemon]   FAIL" source (.-message e))
            {:source source :seed-id seed-id :page page :pair-key pair-key
             :fetched 0 :new 0 :quads 0 :records [] :page-exhausted? false
+            :next-page page
             :failed? true :error (.-message e)})))))
 
 (defn- fulltext-tick!
   "One Project Gutenberg public-domain fulltext pull (bodies → fulltext/
    annex path; metadata → gutenberg.journal.edn). Only copyright:false.
-   --browse enables gutendex popular-page fallback when seed search is saturated."
+   Prefer --browse first: hand-seed gutendex search is largely saturated
+   (batch75: 6 seed queries all 0 fresh then browse succeeds). Browse-only
+   fills the limit faster while remaining public-domain only."
   []
   (println "[daemon] fulltext-gutenberg tick")
   (zero? (sh-status "nbb" "--classpath" "src"
                     "scripts/fulltext-gutenberg.cljs"
-                    "--from-seeds" "--browse" "--limit" "2")))
+                    "--browse" "--limit" "3"))))
 
 (defn- git-push!
   "Commit journals/seeds/state/fulltext pointers so the remote repo self-grows.
@@ -374,9 +383,10 @@
                                   :cursor (inc (:seed-index work))
                                   :ticks (inc (:ticks st 0)))
                            (assoc-in [:pages (str (:source work) "|" (:seed-id work))]
-                                     (if (:page-exhausted? r)
-                                       (:page work) ; stay; mark exhausted below
-                                       (inc (:page work))))
+                                     (or (:next-page r)
+                                         (if (:page-exhausted? r)
+                                           (:page work)
+                                           (inc (:page work)))))
                            (cond-> (:page-exhausted? r)
                              (update :exhausted (fnil conj #{}) (:pair-key work))
                              (:failed? r)
@@ -401,7 +411,8 @@
                (when (and ingest? (or (pos? (:new r)) do-fulltext?))
                  (kotobase-ingest!))
                (println "[daemon] tick done"
-                        (pr-str (select-keys r [:source :seed-id :page :fetched :new :quads :page-exhausted? :failed?])))
+                        (pr-str (select-keys r [:source :seed-id :page :fetched :new :quads
+                                                :page-exhausted? :next-page :failed?])))
                r)))))))
 
 (defn- parse-args [argv]
