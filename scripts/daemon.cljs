@@ -79,23 +79,36 @@
    "loc" {:search (fn [q n page]
                     (loc/search (shape-query "loc" q) :count n :page page))
           :->quads loc/->quads}
-   "dnb" {:search (fn [q n _page]
-                    (dnb/search (shape-query "dnb" q) :max-records n))
+   "dnb" {:search (fn [q n page]
+                    (dnb/search (shape-query "dnb" q)
+                                :max-records n
+                                :start-record (inc (* (dec page) n))))
           :->quads dnb/->quads}
-   "bnf" {:search (fn [q n _page]
-                    (bnf/search (shape-query "bnf" q) :max-records n))
+   "bnf" {:search (fn [q n page]
+                    (bnf/search (shape-query "bnf" q)
+                                :max-records n
+                                :start-record (inc (* (dec page) n))))
           :->quads bnf/->quads}
-   "kb-nl" {:search (fn [q n _page]
-                      (kb-nl/search (shape-query "kb-nl" q) :max-records n))
+   "kb-nl" {:search (fn [q n page]
+                      (kb-nl/search (shape-query "kb-nl" q)
+                                    :max-records n
+                                    :start-record (inc (* (dec page) n))))
             :->quads kb-nl/->quads}
-   "libris-se" {:search (fn [q n _page]
-                          (libris-se/search (shape-query "libris-se" q) :max-records n))
+   "libris-se" {:search (fn [q n page]
+                          (libris-se/search (shape-query "libris-se" q)
+                                            :max-records n
+                                            :start (inc (* (dec page) n))))
                 :->quads libris-se/->quads}
-   "nb-no" {:search (fn [q n _page]
-                      (nb-no/search (shape-query "nb-no" q) :max-records n))
+   "nb-no" {:search (fn [q n page]
+                      ;; nb.no catalog `page` is 0-based
+                      (nb-no/search (shape-query "nb-no" q)
+                                    :max-records n
+                                    :page (max 0 (dec page))))
             :->quads nb-no/->quads}
-   "iccu-it" {:search (fn [q n _page]
-                        (iccu-it/search (shape-query "iccu-it" q) :max-records n))
+   "iccu-it" {:search (fn [q n page]
+                        (iccu-it/search (shape-query "iccu-it" q)
+                                        :max-records n
+                                        :start (* (dec page) n)))
               :->quads iccu-it/->quads}})
 
 (defn- read-edn [p default]

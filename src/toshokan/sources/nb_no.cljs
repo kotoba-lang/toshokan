@@ -38,10 +38,13 @@
        (keep parse-item)))
 
 (defn search
-  "Returns a JS Promise of a seq of field-maps for `query` (free text)."
-  [query & {:keys [max-records] :or {max-records 20}}]
+  "Returns a JS Promise of a seq of field-maps for `query` (free text).
+  Optional `:page` is 0-based (nb.no catalog API); daemon maps 1-based
+  page → (dec page)."
+  [query & {:keys [max-records page] :or {max-records 20 page 0}}]
   (-> (js/fetch (str search-endpoint "?q=" (js/encodeURIComponent query)
-                     "&size=" max-records)
+                     "&size=" max-records
+                     "&page=" (or page 0))
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}})
       (.then (fn [^js r]
                (if (.-ok r)

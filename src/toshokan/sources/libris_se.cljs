@@ -68,11 +68,14 @@
   (keep parse-record (record-blocks xsearch-xml-text)))
 
 (defn search
-  "Returns a JS Promise of a seq of field-maps for `query` (free text)."
-  [query & {:keys [max-records] :or {max-records 20}}]
+  "Returns a JS Promise of a seq of field-maps for `query` (free text).
+  Optional `:start` (1-based XSearch `start=`) pages deeper — response
+  carries from/to attributes (verified: start=1 vs start=4)."
+  [query & {:keys [max-records start] :or {max-records 20 start 1}}]
   (-> (js/fetch (str xsearch-endpoint
                      "?query=" (js/encodeURIComponent query)
-                     "&format=mods&n=" max-records)
+                     "&format=mods&n=" max-records
+                     "&start=" (or start 1))
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}
                      :redirect "follow"})
       (.then (fn [^js r]

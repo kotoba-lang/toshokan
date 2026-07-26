@@ -59,14 +59,18 @@
 
 (defn search
   "Returns a JS Promise of a seq of field-maps for `query` (SRU CQL over
-  the GGC general catalog)."
-  [query & {:keys [max-records] :or {max-records 20}}]
+  the GGC general catalog).
+  Optional `:start-record` (1-based SRU startRecord) pages deeper so the
+  resident daemon can walk past the first result page (verified live:
+  startRecord=1 vs 4 return different titles)."
+  [query & {:keys [max-records start-record] :or {max-records 20 start-record 1}}]
   (-> (js/fetch (str sru-endpoint
                      "?version=1.2&operation=searchRetrieve"
                      "&x-collection=GGC"
                      "&query=" (js/encodeURIComponent query)
                      "&recordSchema=dcx"
-                     "&maximumRecords=" max-records)
+                     "&maximumRecords=" max-records
+                     "&startRecord=" (or start-record 1))
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}
                      :redirect "follow"})
       (.then (fn [^js r]

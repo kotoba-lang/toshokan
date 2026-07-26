@@ -45,10 +45,12 @@
   (keep parse-item (:briefRecords response)))
 
 (defn search
-  "Returns a JS Promise of a seq of field-maps for `query` (free text)."
-  [query & {:keys [max-records] :or {max-records 20}}]
+  "Returns a JS Promise of a seq of field-maps for `query` (free text).
+  Optional `:start` is 0-based row offset (OPAC SBN `start=`)."
+  [query & {:keys [max-records start] :or {max-records 20 start 0}}]
   (-> (js/fetch (str search-endpoint "?any=" (js/encodeURIComponent query)
-                     "&type=0&start=0&rows=" max-records)
+                     "&type=0&start=" (or start 0)
+                     "&rows=" max-records)
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}})
       (.then (fn [^js r]
                (if (.-ok r)

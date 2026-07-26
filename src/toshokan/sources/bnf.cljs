@@ -53,13 +53,16 @@
 
 (defn search
   "Returns a JS Promise of a seq of field-maps for `query` (SRU CQL, e.g.
-  `(str \"bib.title all \\\"\" q \"\\\"\")`)."
-  [query & {:keys [max-records] :or {max-records 20}}]
+  `(str \"bib.title all \\\"\" q \"\\\"\")`).
+  Optional `:start-record` (1-based) pages past the first result window
+  (batch77: without this the daemon re-fetched page 1 forever → all-dups)."
+  [query & {:keys [max-records start-record] :or {max-records 20 start-record 1}}]
   (-> (js/fetch (str sru-endpoint
                      "?version=1.2&operation=searchRetrieve"
                      "&query=" (js/encodeURIComponent query)
                      "&recordSchema=dublincore"
-                     "&maximumRecords=" max-records)
+                     "&maximumRecords=" max-records
+                     "&startRecord=" (or start-record 1))
                 #js {:headers #js {"User-Agent" "toshokan-library-harvester/0.1 (kotoba-lang/toshokan; public bibliographic metadata preservation; https://github.com/kotoba-lang/toshokan)"}})
       (.then (fn [^js r]
                (if (.-ok r)
