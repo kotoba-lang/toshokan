@@ -173,6 +173,15 @@ NODE_PATH="<path-to>/kotoba-lang/kotobase-client/node_modules" \
 
 # tests (fixture-based, no live network)
 npx nbb --classpath "src:test" scripts/run-tests.cljs
+
+# one Kotoba policy test definition, executed on KIR/JVM + restricted ESM + Wasm
+cd ../compiler
+clojure -M:run test ../toshokan/src/toshokan/portable_effect.kotoba
+
+# build the restricted ESM policy imported by the workerd adapter
+cd ../toshokan
+scripts/build-portable-effect.sh
+node workerd/portable-effect-host.test.mjs
 ```
 
 ## Schema
