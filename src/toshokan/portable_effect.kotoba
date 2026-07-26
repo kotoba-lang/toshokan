@@ -27,7 +27,7 @@
       (if (> max-items 0)
         (if (<= max-items 20)
           (if (> deadline-ms 0)
-            (if (<= deadline-ms 10000) 1 0)
+            (if (<= deadline-ms 30000) 1 0)
             0)
           0)
         0)
@@ -39,11 +39,11 @@
 ;; executes this one definition on KIR/JVM, restricted ESM, and Wasm.
 (defn test-admits-ndl [] :i64
   (if (= (ndl-scope-admitted "library:ndl" "toshokan/http" "get") 1)
-    (= (ndl-limits-admitted 2097152 20 10000) 1)
+    (= (ndl-limits-admitted 2097152 20 30000) 1)
     0))
 
 (defn test-denies-broader-limit [] :i64
-  (= (ndl-limits-admitted 2097152 21 10000) 0))
+  (= (ndl-limits-admitted 2097152 21 30000) 0))
 
 (defn test-denies-other-provider [] :i64
   (= (ndl-scope-admitted "library:ndl" "attacker/http" "get") 0))

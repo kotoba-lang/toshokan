@@ -11,3 +11,17 @@ clojure -M:run compile \
   "$repo_dir/src/toshokan/portable_effect.kotoba" \
   --target javascript \
   --output "$output_dir/portable-effect.mjs"
+
+clojure -M:run compile \
+  "$repo_dir/src/toshokan/ndl_parser.kotoba" \
+  --target javascript \
+  --output "$output_dir/ndl-parser.mjs"
+
+clojure -M:run compile \
+  "$repo_dir/src/toshokan/application.kotoba" \
+  --target javascript \
+  --output "$output_dir/application.mjs"
+
+clojure -M:run host-profile \
+  "$repo_dir/toshokan.host.edn" \
+  --output-dir "$output_dir/host"

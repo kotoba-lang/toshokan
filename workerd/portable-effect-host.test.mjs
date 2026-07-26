@@ -11,7 +11,7 @@ const request = {
     resource: "library:ndl",
     target: "toshokan/http",
     operation: "get",
-    limits: { maxBytes: 2097152, maxItems: 20, deadlineMs: 10000 },
+    limits: { maxBytes: 2097152, maxItems: 20, deadlineMs: 30000 },
     auditId: "ndl-test-1"
   },
   input: {

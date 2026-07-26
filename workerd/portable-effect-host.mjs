@@ -91,7 +91,10 @@ export async function dispatchPortableEffect(effect, {
       response = await fetchImpl(effect.input.url, {
         method: "GET",
         headers: effect.input.headers,
-        redirect: "error",
+        // Cloudflare Workers intentionally does not implement redirect:"error".
+        // "manual" preserves the same fail-closed property: every 3xx reaches
+        // the !ok branch below and is never followed to another authority.
+        redirect: "manual",
         signal: controller.signal
       });
     } finally {
@@ -110,8 +113,14 @@ export async function dispatchPortableEffect(effect, {
   } catch (error) {
     const reason = error?.kotobaDenied
       ?? (error?.name === "AbortError" ? "deadline-exceeded" : "provider-error");
+    const diagnostic = Object.freeze({
+      name: typeof error?.name === "string" ? error.name.slice(0, 64) : "Error",
+      message: typeof error?.message === "string" ? error.message.slice(0, 256) : "provider failed"
+    });
+    console.error(JSON.stringify({ event: "toshokan.provider-error", reason, diagnostic }));
     return Object.freeze({
       ...deny(reason, effect.id),
+      diagnostic,
       receipt: Object.freeze({ ...receiptBase, outcome: "denied", denied: reason })
     });
   }
