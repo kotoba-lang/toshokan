@@ -12,7 +12,7 @@
 (def ndl-resource "library:ndl")
 (def ndl-origin "https://ndlsearch.ndl.go.jp")
 (def ndl-endpoint (str ndl-origin "/api/sru"))
-(def ndl-limits {:max-bytes 2097152 :max-items 20 :deadline-ms 10000})
+(def ndl-limits {:max-bytes 2097152 :max-items 20 :deadline-ms 30000})
 
 (defn- encode-query [text]
   #?(:clj

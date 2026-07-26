@@ -1,0 +1,5 @@
+{:paths ["src"]
+ :deps {io.github.kotoba-lang/kotobase-engine
+        {:local/root "../kotobase-engine"}
+        thheller/shadow-cljs
+        {:mvn/version "3.2.1"}}}
