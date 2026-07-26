@@ -161,7 +161,9 @@
 (defn- work-pairs
   "Cartesian seed × source. Hand (non-grown) seeds first so classic
    authors are not starved behind hundreds of self-grown JP name pairs.
-   CJK grown seeds only pair with ndl (other sources yield empty ticks)."
+   Any CJK query (hand or grown) only pairs with ndl — other catalogs
+   yield empty/404 ticks (real: batch74 soseki/akutagawa/murasaki on
+   kb-nl/nb-no/iccu)."
   [seeds-data]
   (let [srcs (vec (get-in seeds-data [:policy :sources]))
         seeds (:seeds seeds-data)
@@ -170,8 +172,7 @@
         ordered (into hand grown)]
     (vec (for [seed ordered
                src srcs
-               :when (or (not (:grown-from seed))
-                         (not (cjk-query? (:query seed)))
+               :when (or (not (cjk-query? (:query seed)))
                          (= src "ndl"))]
            {:seed seed
             :source src
