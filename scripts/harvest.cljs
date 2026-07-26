@@ -62,20 +62,32 @@
         "korea-nl" q
         q))))
 
+(defn- known-entities [journal]
+  (->> journal (map first) set))
+
 (defn -main [source-name query max-records]
   (if-let [{:keys [search ->quads]} (get sources source-name)]
     (let [shaped (shape-query source-name query)
           journal-path (path/join "80-data" "public" (str source-name ".journal.edn"))
           existing (quad/read-journal journal-path)
+          known (known-entities existing)
           tx (quad/next-tx existing)
           retrieved-at (.toISOString (js/Date.))]
       (when (not= shaped query)
         (println "shaped query:" (pr-str query) "->" (pr-str shaped)))
       (-> (search shaped (or max-records 20))
           (.then (fn [recs]
-                   (println "fetched" (count recs) "records from" source-name "for query" (pr-str shaped))
-                   (let [new-quads (into [] (mapcat #(->quads tx retrieved-at %)) recs)]
-                     (quad/append-journal! journal-path new-quads)
+                   (let [recs (vec recs)
+                         ;; Match daemon harvest-one!: skip entities already in journal
+                         ;; so force-harvest re-runs do not silently inflate quads.
+                         fresh (filterv #(not (contains? known (:entity %))) recs)
+                         new-quads (into [] (mapcat #(->quads tx retrieved-at %)) fresh)]
+                     (println "fetched" (count recs) "records from" source-name
+                              "for query" (pr-str shaped)
+                              "fresh=" (count fresh)
+                              "dupes=" (- (count recs) (count fresh)))
+                     (when (seq new-quads)
+                       (quad/append-journal! journal-path new-quads))
                      (println "wrote" (count new-quads) "quads (tx" tx ") to" journal-path))))
           (.catch (fn [e]
                     (println "FAILED:" (.-message e))
@@ -83,7 +95,6 @@
     (do
       (println "Unknown source" (pr-str source-name) "-- choose one of" (pr-str (keys sources)))
       (js/process.exit 1))))
-
 ;; argv shape varies with how nbb was invoked (`--classpath` shifts the
 ;; script-path index), so locate this script's own path in argv rather than
 ;; assuming a fixed offset, and take everything after it as user args.
