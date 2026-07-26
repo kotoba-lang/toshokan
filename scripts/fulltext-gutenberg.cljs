@@ -344,50 +344,56 @@
                                    (into acc rs)))))))))))))
      start-page want known0 [])))
 
+(defn- ingest-fresh-books!
+  "Ingest up to remaining books; returns promise of {:ok-n :ids :results}."
+  [books remaining]
+  (let [fresh (->> books
+                   (take remaining)
+                   vec)]
+    (if (empty? fresh)
+      (js/Promise.resolve {:ok-n 0 :ids #{} :results []})
+      (-> (run-sequential (map (fn [b] (fn [] (ingest-book! b))) fresh))
+          (.then (fn [rs]
+                   (let [ok-ids (into #{}
+                                      (keep (fn [r]
+                                              (when (:ok r) (str (:id r))))
+                                            rs))]
+                     {:ok-n (count ok-ids)
+                      :ids ok-ids
+                      :results rs})))))))
+
 (defn- search-seeds-with-budget!
-  "Search seed queries sequentially under a *global* remaining budget.
-   Previously each seed took up to `want` books, so 24 seeds × limit 2
-   over-fetched and stalled daemon ticks (real: batch73 tick1 hung ~minutes)."
+  "Search seed queries under a global remaining budget (not per-seed)."
   [seed-qs want known0]
   (let [state (atom {:remaining want :known known0 :acc []})]
     ((fn step [qs]
-       (let [{:keys [remaining known acc]} @state]
-         (cond
-           (or (zero? remaining) (empty? qs))
+       (let [st @state
+             remaining (:remaining st)
+             known (:known st)
+             acc (:acc st)]
+         (if (or (zero? remaining) (empty? qs))
            (js/Promise.resolve acc)
-
-           :else
            (let [q (first qs)]
              (-> (search-books q remaining)
-                 (.then
-                  (fn [books]
-                    (let [fresh (->> books
-                                     (remove #(contains? known (str (:id %))))
-                                     (take remaining)
-                                     vec)]
-                      (println "[fulltext] search" (pr-str q)
-                               "hits=" (count books)
-                               "fresh=" (count fresh)
-                               "remaining=" remaining)
-                      (if (empty? fresh)
-                        (step (rest qs))
-                        (-> (run-sequential
-                             (map (fn [b] (fn [] (ingest-book! b))) fresh))
-                            (.then
-                             (fn [rs]
-                               (let [ok-ids (into #{}
-                                                  (keep (fn [r]
-                                                          (when (:ok r) (str (:id r))))
-                                                        rs))
-                                     ok-n (count ok-ids)]
-                                 (swap! state
-                                        (fn [s]
-                                          {:remaining (max 0 (- (:remaining s) ok-n))
-                                           :known (into (:known s) ok-ids)
-                                           :acc (conj (:acc s)
-                                                      {:query q :results rs})}))
-                                 (step (rest qs))))))))))))))
-     seed-qs)))
+                 (.then (fn [books]
+                          (let [candidates (->> books
+                                                (remove #(contains? known (str (:id %))))
+                                                vec)]
+                            (println "[fulltext] search" (pr-str q)
+                                     "hits=" (count books)
+                                     "fresh=" (count candidates)
+                                     "remaining=" remaining)
+                            (-> (ingest-fresh-books! candidates remaining)
+                                (.then (fn [res]
+                                         (swap! state
+                                                (fn [s]
+                                                  {:remaining (max 0 (- (:remaining s) (:ok-n res)))
+                                                   :known (into (:known s) (:ids res))
+                                                   :acc (conj (:acc s)
+                                                              {:query q
+                                                               :results (:results res)})}))
+                                         (step (rest qs)))))))))))))
+     (vec seed-qs))))
 
 (defn -main []
   (let [argv (js->clj js/process.argv)
@@ -399,21 +405,18 @@
         known (known-ids)
         seed-offset (count known)
         want (or (:limit opts) 1)
-        ;; Cap seed fan-out: enough variety to fill want, not 24×want downloads.
         seed-window (min 12 (max 4 (* 3 want)))
         file-seeds (when (:from-seeds? opts) (seeds-from-file))
-        seed-qs (cond-> (vec (:seeds opts))
-                  (seq file-seeds)
-                  (into (rotate-take file-seeds seed-window seed-offset)))
-        seed-qs (if (and (empty? seed-qs)
+        seed-qs0 (cond-> (vec (:seeds opts))
+                   (seq file-seeds)
+                   (into (rotate-take file-seeds seed-window seed-offset)))
+        seed-qs (if (and (empty? seed-qs0)
                          (empty? (:ids opts))
                          (not (:browse? opts)))
                   ["Pride and Prejudice" "Iliad" "Origin of Species"
                    "Romeo and Juliet" "Divine Comedy" "Moby Dick"
                    "Frankenstein" "Don Quixote" "Candide" "Beowulf"]
-                  seed-qs)
-        ;; --browse means "allow popular-page fallback when seeds underfill
-        ;; want", not "always browse after seeds" (that over-fetched).
+                  seed-qs0)
         allow-browse? (:browse? opts)]
     (println "[fulltext] start"
              (pr-str (assoc opts
@@ -443,18 +446,13 @@
                 {:id-results id-results
                  :seed-results []})))))
         (.then
-         (fn [{:keys [id-results seed-results] :as summary}]
-           (let [ok-n (+ (count (filter :ok id-results))
+         (fn [summary]
+           (let [id-results (:id-results summary)
+                 seed-results (:seed-results summary)
+                 ok-n (+ (count (filter :ok id-results))
                          (count-ok seed-results))
-                 rem (max 0 (- want ok-n))
-                 need-browse?
-                 (and allow-browse?
-                      (pos? rem)
-                      (or (:from-seeds? opts)
-                          (seq seed-qs)
-                          (empty? (:ids opts))
-                          (and (seq (:ids opts)) (< ok-n want))))]
-             (if-not need-browse?
+                 rem (max 0 (- want ok-n))]
+             (if-not (and allow-browse? (pos? rem))
                (do (println "[fulltext] done ok=" ok-n "want=" want
                             (pr-str summary))
                    summary)
@@ -468,4 +466,3 @@
                         out)))))))))))
 
 (-main)
-
