@@ -319,7 +319,7 @@
   (println "[daemon] fulltext-gutenberg tick")
   (zero? (sh-status "nbb" "--classpath" "src"
                     "scripts/fulltext-gutenberg.cljs"
-                    "--browse" "--limit" "3"))))
+                    "--browse" "--limit" "3")))
 
 (defn- git-push!
   "Commit journals/seeds/state/fulltext pointers so the remote repo self-grows.
