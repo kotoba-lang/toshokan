@@ -53,34 +53,49 @@
                  (throw (js/Error. (str "HTTP " (.-status r) " " url))))))
       (.then (fn [ab] (js/Buffer.from ab)))))
 
-(defn- plain-text-url [book]
+(defn- plain-text-urls
+  "Candidate plain-text body URLs for a gutendex book map, highest preference
+   first. Multiple fallbacks needed because gutendex format URLs and the
+   canonical cache path sometimes 404 (seen on e.g. pg76404)."
+  [book]
   (let [fm (:formats book)
-        entries (if (map? fm) (seq fm) nil)]
-    (or
-     ;; preferred: utf-8 plain text (not zip)
-     (some (fn [[k v]]
-             (let [ks (str k)]
-               (when (and v
-                          (str/includes? ks "text/plain")
-                          (str/includes? ks "utf-8")
-                          (not (str/includes? ks "zip")))
-                 v)))
-           entries)
-     (some (fn [[k v]]
-             (let [ks (str k)]
-               (when (and v
-                          (str/includes? ks "text/plain")
-                          (not (str/includes? ks "zip")))
-                 v)))
-           entries)
-     ;; fallback: well-known Gutenberg mirror path
-     (when-let [id (:id book)]
-       (str "https://www.gutenberg.org/cache/epub/" id "/pg" id ".txt")))))
+        entries (if (map? fm) (seq fm) nil)
+        id (:id book)
+        from-formats
+        (into []
+              (keep (fn [[k v]]
+                      (let [ks (str k)]
+                        (when (and v
+                                   (str/includes? ks "text/plain")
+                                   (not (str/includes? ks "zip")))
+                          v)))
+                    entries))
+        ;; prefer utf-8 listed first
+        utf8 (filterv #(or (str/includes? (str %) "utf-8")
+                           (str/includes? (str %) "utf8"))
+                      from-formats)
+        other (filterv #(not (or (str/includes? (str %) "utf-8")
+                                 (str/includes? (str %) "utf8")))
+                       from-formats)
+        fallbacks (when id
+                    [(str "https://www.gutenberg.org/cache/epub/" id "/pg" id ".txt")
+                     (str "https://www.gutenberg.org/files/" id "/" id "-0.txt")
+                     (str "https://www.gutenberg.org/files/" id "/" id "-8.txt")
+                     (str "https://www.gutenberg.org/files/" id "/" id ".txt")
+                     (str "https://www.gutenberg.org/ebooks/" id ".txt.utf-8")])]
+    (->> (concat utf8 other fallbacks)
+         (remove str/blank?)
+         distinct
+         vec)))
+
+(defn- plain-text-url [book]
+  (first (plain-text-urls book)))
 
 (defn- book->fields [book]
   (let [id (str (:id book))
         authors (map :name (:authors book))
-        subjects (:subjects book)]
+        subjects (:subjects book)
+        urls (plain-text-urls book)]
     {:entity (str "gutenberg:" id)
      :gutenberg-id id
      :title (:title book)
@@ -91,8 +106,8 @@
      :download-count (:download_count book)
      :copyright? (boolean (:copyright book))
      :source-url (str "https://www.gutenberg.org/ebooks/" id)
-     :text-url (plain-text-url book)}))
-
+     :text-url (first urls)
+     :text-urls urls}))
 (defn- write-body! [fields buf]
   (let [id (:gutenberg-id fields)
         dir (path/join fulltext-root id)
@@ -153,22 +168,35 @@
       (do (println "[fulltext] SKIP already have id=" (:gutenberg-id fields))
           (js/Promise.resolve {:ok false :reason :duplicate}))
 
-      (str/blank? (:text-url fields))
+      (empty? (:text-urls fields))
       (do (println "[fulltext] SKIP no plain-text format id=" (:gutenberg-id fields))
           (js/Promise.resolve {:ok false :reason :no-text}))
 
       :else
-      (-> (fetch-bytes (:text-url fields))
-          (.then
-           (fn [buf]
-             (let [body (write-body! fields buf)
-                   nq (append-quads! fields body)]
-               (println "[fulltext] OK id=" (:gutenberg-id fields)
-                        "title=" (pr-str (:title fields))
-                        "bytes=" (:bytes body)
-                        "quads=" nq)
-               {:ok true :id (:gutenberg-id fields) :bytes (:bytes body)
-                :title (:title fields)})))))))
+      ;; Try each candidate URL until one succeeds (404 on cache path is common).
+      ((fn try-url [urls]
+         (if-not (seq urls)
+           (do (println "[fulltext] SKIP all text urls failed id="
+                        (:gutenberg-id fields))
+               (js/Promise.resolve {:ok false :reason :all-urls-failed}))
+           (-> (fetch-bytes (first urls))
+               (.then
+                (fn [buf]
+                  (let [fields* (assoc fields :text-url (first urls))
+                        body (write-body! fields* buf)
+                        nq (append-quads! fields* body)]
+                    (println "[fulltext] OK id=" (:gutenberg-id fields)
+                             "title=" (pr-str (:title fields))
+                             "bytes=" (:bytes body)
+                             "quads=" nq
+                             "url=" (first urls))
+                    {:ok true :id (:gutenberg-id fields) :bytes (:bytes body)
+                     :title (:title fields)})))
+               (.catch
+                (fn [e]
+                  (println "[fulltext] try-fail" (first urls) (.-message e))
+                  (try-url (rest urls)))))))
+       (:text-urls fields)))))
 
 (defn search-books
   "Fetch public-domain gutendex hits for q. Pulls a larger page than `limit`
