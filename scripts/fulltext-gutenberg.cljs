@@ -234,15 +234,19 @@
   (boolean (re-find #"[\u3040-\u30ff\u3400-\u9fff]" (str q))))
 
 (defn- seeds-from-file []
+  "Hand seeds only for gutendex search. Grown catalog creators are noisy
+   (roles, dates, CJK romanization) and waste ticks; long-tail PD discovery
+   is --browse's job."
   (let [m (try (edn/read-string (fs/readFileSync "seeds.edn" "utf8"))
                (catch :default _ {:seeds []}))]
     (->> (:seeds m)
-         ;; Prefer hand seeds, then grown Latin-script queries for long-tail
-         ;; fulltext discovery (grown CJK still skipped by cjk-query?).
-         (sort-by (fn [s] (if (:grown-from s) 1 0)))
+         (remove :grown-from)
          (map :query)
          (remove str/blank?)
          (remove cjk-query?)
+         ;; Drop catalog-shaped strings that never hit Gutenberg usefully
+         (remove #(re-find #"(?i)\b(author|verfass|éditeur|übersetz|herausgeber)\b" (str %)))
+         (remove #(> (count (str %)) 80))
          distinct
          vec)))
 
