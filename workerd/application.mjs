@@ -219,11 +219,37 @@ async function harvest(host, bucket, scheduledTime = host.clock.now()) {
   return persistHarvest(bucket, id, result, scheduledTime);
 }
 
-function authorized(request, host) {
+function headerValue(headers, name) {
+  if (!headers) return null;
+  if (typeof headers.get === "function") return headers.get(name);
+  const lower = String(name).toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (String(key).toLowerCase() === lower) return value;
+  }
+  return null;
+}
+
+function authorized(headers, host) {
   const expected = host.secret.get("TOSHOKAN_RUN_TOKEN");
   return typeof expected === "string"
     && expected.length >= 32
-    && request.headers.get("authorization") === `Bearer ${expected}`;
+    && headerValue(headers, "authorization") === `Bearer ${expected}`;
+}
+
+function jsonReply(status, body) {
+  return Object.freeze({
+    status,
+    headers: Object.freeze({
+      "content-type": "application/json; charset=utf-8"
+    }),
+    body: JSON.stringify(body)
+  });
+}
+
+function pathOnly(path) {
+  const raw = String(path || "/");
+  const q = raw.indexOf("?");
+  return q < 0 ? raw : raw.slice(0, q);
 }
 
 function closedBucket(host, binding) {
@@ -271,41 +297,82 @@ export function createApplication(host) {
       return new Response(response.body, { status: response.status });
     }
   }).fetch;
-  return Object.freeze({
-  async fetch(request, ctx) {
-    const url = new URL(request.url);
-    if (lifecycle.fetchAdmitted(request.method, url.pathname) !== 1n)
-      return Response.json({ ok: false, error: "not-found" }, { status: 404 });
-    if (request.method === "GET" && url.pathname === "/health") {
-      return Response.json({
+
+  async function handleIncoming(incoming, _ctx) {
+    const method = String(incoming?.method || "GET").toUpperCase();
+    const path = pathOnly(incoming?.path || "/");
+    if (lifecycle.fetchAdmitted(method, path) !== 1n)
+      return jsonReply(404, { ok: false, error: "not-found" });
+    if (method === "GET" && path === "/health") {
+      return jsonReply(200, {
         ok: true,
         service: "murakumo-toshokan",
         policy: "kotoba",
         parser: "kotoba",
         persistence: true,
-        host: "kotoba.generated-workerd/v1"
+        host: "kotoba.generated-workerd/v1",
+        ingress: "handleIncoming"
       });
     }
-    if (request.method === "GET" && url.pathname === "/latest") {
+    if (method === "GET" && path === "/latest") {
       const object = await bucket.get("ndl/latest.json");
       if (!object)
-        return Response.json({ ok: false, error: "no-harvest-yet" }, { status: 404 });
-      return new Response(object.body, {
-        headers: { "content-type": "application/json; charset=utf-8" }
+        return jsonReply(404, { ok: false, error: "no-harvest-yet" });
+      const body = new TextDecoder().decode(object.body);
+      return Object.freeze({
+        status: 200,
+        headers: Object.freeze({
+          "content-type": "application/json; charset=utf-8"
+        }),
+        body
       });
     }
-    if (request.method === "POST" && url.pathname === "/run") {
-      if (!authorized(request, host))
-        return Response.json({ ok: false, denied: "unauthorized" }, { status: 401 });
+    if (method === "POST" && path === "/run") {
+      if (!authorized(incoming.headers, host))
+        return jsonReply(401, { ok: false, denied: "unauthorized" });
       const summary = await harvest(host, bucket);
-      return Response.json(summary, { status: summary.ok ? 200 : 502 });
+      return jsonReply(summary.ok ? 200 : 502, summary);
     }
-    if (request.method === "POST" && url.pathname === "/effect") {
-      if (!authorized(request, host))
-        return Response.json({ ok: false, denied: "unauthorized" }, { status: 401 });
-      return effectFetch(request);
+    if (method === "POST" && path === "/effect") {
+      if (!authorized(incoming.headers, host))
+        return jsonReply(401, { ok: false, denied: "unauthorized" });
+      const request = new Request(`https://toshokan.local${incoming.path || path}`, {
+        method,
+        headers: incoming.headers,
+        body: incoming.body || undefined
+      });
+      const response = await effectFetch(request);
+      const headers = Object.create(null);
+      response.headers.forEach((value, key) => { headers[key] = value; });
+      return Object.freeze({
+        status: response.status,
+        headers: Object.freeze(headers),
+        body: await response.text()
+      });
     }
-    return Response.json({ ok: false, error: "not-found" }, { status: 404 });
+    return jsonReply(404, { ok: false, error: "not-found" });
+  }
+
+  return Object.freeze({
+  handleIncoming,
+
+  async fetch(request, ctx) {
+    const url = new URL(request.url);
+    const body = (request.method === "GET" || request.method === "HEAD")
+      ? ""
+      : await request.text();
+    const headers = Object.create(null);
+    request.headers.forEach((value, key) => { headers[key] = value; });
+    const reply = await handleIncoming({
+      method: request.method,
+      path: url.pathname + url.search,
+      headers: Object.freeze(headers),
+      body
+    }, ctx);
+    return new Response(reply.body, {
+      status: reply.status,
+      headers: reply.headers
+    });
   },
 
   async scheduled(controller, ctx) {
