@@ -10,9 +10,60 @@ derived, rebuildable index over it) and
 research, and the real end-to-end verification numbers are in
 [ADR-2607199900](https://github.com/com-junkawasaki/root/blob/main/90-docs/adr/2607199900-toshokan-national-library-catalog-ingestion.edn).
 
-This is a metadata-only project: title / creator / publisher / date /
-identifiers / subject. It never harvests full text or digitized page
-images, and never bypasses paywalls or access controls.
+**Default plane is metadata-only** (title / creator / publisher / date /
+identifiers / subject from national library catalogs). It never bypasses
+paywalls or access controls.
+
+**Public-domain full text** is a second plane (ADR-2607255100 fulltext
+addendum): Project Gutenberg works with gutendex `copyright: false` only.
+Bodies live under `fulltext/gutenberg/<id>/` as **git-annex** content (B2);
+metadata quads live in `80-data/public/gutenberg.journal.edn`. In-copyright
+full text is never stored.
+
+## Self-growing resident loop (2026-07-25, ADR-2607255100)
+
+The repo now grows itself on a schedule instead of only via manual
+`scripts/harvest.cljs` one-shots:
+
+| file | role |
+|---|---|
+| `seeds.edn` | query seed list (hand-editable; daemon also appends grown seeds) |
+| `scripts/daemon.cljs` | one tick: harvest → dedupe → journal append → seed grow → optional fulltext + push + kotobase ingest |
+| `state.edn` | cursor / exhausted pairs (daemon-managed) |
+| `scripts/query.cljs` | local DataScript query over journals |
+| `scripts/fulltext-gutenberg.cljs` | public-domain full text (Gutenberg / gutendex) |
+| `fulltext/gutenberg/` | annex bodies + per-work meta.edn |
+| `deploy/com.kotoba-lang.toshokan-tick.plist` | macOS LaunchAgent for murakumo-fleet host residency |
+
+```bash
+# one tick (catalog harvest only)
+nbb --classpath src scripts/daemon.cljs --once
+
+# one tick + public-domain fulltext + git push + kotobase fold (LaunchAgent)
+nbb --classpath src scripts/daemon.cljs --once --fulltext --push --ingest
+
+# fulltext only (a few classics / seed-driven)
+nbb --classpath src scripts/fulltext-gutenberg.cljs --id 1342
+nbb --classpath src scripts/fulltext-gutenberg.cljs --from-seeds --limit 1
+
+# local query surface
+nbb --classpath src scripts/query.cljs stats
+nbb --classpath src scripts/query.cljs sample 10
+nbb --classpath src scripts/query.cljs fulltext
+```
+
+Residency on the murakumo fleet host is a LaunchAgent (same class as
+`com.gftd.fleet-ci-murakumo-tick` / `com.gftd.itonami-qwen36-tick`), not a
+WASM `on-tick` guest yet — that waits on ADR-2607252400 CID capabilities.
+`RunAtLoad` + `StartInterval=21600` (6h). Install:
+
+```bash
+cp deploy/com.kotoba-lang.toshokan-tick.plist ~/Library/LaunchAgents/
+# ensure ~/.gftd/run-toshokan-tick.cljs exists (wrapper cds to TOSHOKAN_ROOT)
+launchctl bootout gui/$(id -u)/com.kotoba-lang.toshokan-tick 2>/dev/null || true
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kotoba-lang.toshokan-tick.plist
+launchctl kickstart -k gui/$(id -u)/com.kotoba-lang.toshokan-tick
+```
 
 ## Sources
 
@@ -123,65 +174,15 @@ NODE_PATH="<path-to>/kotoba-lang/kotobase-client/node_modules" \
 # tests (fixture-based, no live network)
 npx nbb --classpath "src:test" scripts/run-tests.cljs
 
-# Kotoba policy/parser tests, each executed on KIR/JVM + restricted ESM + Wasm
-# ndl_parser requires the compiler's bounded XML text/name ABI (compiler main).
+# one Kotoba policy test definition, executed on KIR/JVM + restricted ESM + Wasm
 cd ../compiler
 clojure -M:run test ../toshokan/src/toshokan/portable_effect.kotoba
-clojure -M:run test ../toshokan/src/toshokan/ndl_parser.kotoba
 
-# build restricted ESM policy/parser modules
+# build the restricted ESM policy imported by the workerd adapter
 cd ../toshokan
 scripts/build-portable-effect.sh
-# From another compiler checkout:
-# KOTOBA_COMPILER_DIR=/path/to/compiler scripts/build-portable-effect.sh
 node workerd/portable-effect-host.test.mjs
 ```
-
-## murakumo.cloud
-
-Production runs as the independent `murakumo-toshokan` Cloudflare Worker so the
-`cloud-murakumo` apex SPA and `local-murakumo` fleet API keep their existing
-release boundaries.
-
-```sh
-npm install
-npm run build
-npm run deploy
-
-curl https://toshokan.murakumo.cloud/health
-curl https://toshokan.murakumo.cloud/latest
-```
-
-The daily UTC Cron harvest is persisted to the `murakumo-toshokan` R2 bucket.
-`POST /run` is fail-closed unless the bearer equals the
-`TOSHOKAN_RUN_TOKEN` Worker secret. Production requests 20 records per run and
-admits at most 2 MiB of response data. The host stores the response as immutable
-32 KiB SHA-256 blocks plus a root manifest, frames each `recordData` element,
-and passes only frames of at most 65,536 bytes to the Kotoba parser. Thus the
-64 KiB scalar/parser bound remains a local resource invariant rather than a
-dataset-size limit.
-
-Large collections should be represented as manifests, cursors, and bounded
-values—not concatenated into one Kotoba string. A manifest is the capability-
-checked handle to immutable blocks; paging/resumption tokens determine which
-bounded batch is processed next. This keeps memory and fuel accounting explicit
-while allowing the total collection to grow independently.
-
-Harvest metadata is also transacted through Kotobase Engine. The Worker bundles
-the Promise-based CLJS engine and an R2 implementation of Kotobase's immutable
-block, CID read, and conditional-ref contracts. Each successful harvest creates
-an `ndl:<request-id>` entity containing its source, retrieval time, record count,
-titles, byte count, and chunk-manifest root. The resulting Kotobase CID head and
-pulled entity are included in the harvest receipt. Raw XML and stream chunks
-remain object values; queryable metadata and their content roots live in the
-Kotobase transaction chain.
-
-`toshokan.host.edn` is the authoritative workerd deployment and capability
-profile. The Kotoba compiler validates it and generates `worker.mjs`,
-`wrangler.json`, and a digest manifest under `workerd/generated/host/`.
-The generated host never passes Cloudflare `env` to the application: it exposes
-only the admitted HTTP origin/method/limits, R2 binding/key prefixes, declared
-configuration values, and named secret. Generated files are not source.
 
 ## Schema
 
