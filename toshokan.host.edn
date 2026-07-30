@@ -19,9 +19,6 @@
  :http
  {:allowed-origins ["https://ndlsearch.ndl.go.jp"]
   :allowed-methods #{:get}
-  ;; Inbound app routes include POST /run and /effect (ADR 0103 defaults
-  ;; cover GET/HEAD/POST/PUT/DELETE when :ingress-methods is omitted).
-  :max-request-bytes 65536
   :max-response-bytes 2097152
   :deadline-ms 30000}
  :object-store

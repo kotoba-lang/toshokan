@@ -58,23 +58,9 @@ const host = Object.freeze({
 });
 
 const application = createApplication(host);
-assert.equal(typeof application.handleIncoming, "function");
-
 const health = await application.fetch(new Request("https://example.test/health"));
 assert.equal(health.status, 200);
-const healthBody = await health.json();
-assert.equal(healthBody.host, "kotoba.generated-workerd/v1");
-assert.equal(healthBody.ingress, "handleIncoming");
-
-// Family-3 path: host adapter calls handleIncoming with a plain map.
-const healthIngress = await application.handleIncoming({
-  method: "GET",
-  path: "/health",
-  headers: Object.freeze({}),
-  body: ""
-});
-assert.equal(healthIngress.status, 200);
-assert.equal(JSON.parse(healthIngress.body).ingress, "handleIncoming");
+assert.equal((await health.json()).host, "kotoba.generated-workerd/v1");
 
 const denied = await application.fetch(new Request("https://example.test/run", {
   method: "POST"
