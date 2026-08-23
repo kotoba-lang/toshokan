@@ -14,5 +14,8 @@
     "@noble/hashes": "^1.4.0",
     "shadow-cljs": "^3.2.1",
     "wrangler": "^4.106.0"
+  },
+  "overrides": {
+    "undici": "7.29.0"
   }
 }
