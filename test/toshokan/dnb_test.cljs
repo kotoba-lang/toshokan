@@ -1,5 +1,6 @@
 (ns toshokan.dnb-test
   (:require ["node:fs" :as fs]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is]]
             [toshokan.sources.dnb :as dnb]))
 
@@ -16,7 +17,17 @@
     (is (= "dnb:1395072884" (:entity r)))
     (is (= ["978-3-99165-215-1" "3-99165-215-3"] (:isbn r)))
     (is (= 3 (count (:publishers r))))
-    (is (= "ger" (:language r)))))
+    (is (= "ger" (:language r)))
+    ;; no tel:URL on first fixture record → stable d-nb.info permalink
+    (is (= "https://d-nb.info/1395072884" (:source-url r)))))
+
+(deftest prefers-explicit-tel-url-when-present
+  ;; second fixture record has multiple tel:URL identifiers
+  (let [r (second (dnb/parse-records sample-xml))]
+    (is (= "dnb:1382653204" (:entity r)))
+    (is (string? (:source-url r)))
+    (is (or (str/starts-with? (:source-url r) "http://")
+            (str/starts-with? (:source-url r) "https://")))))
 
 (deftest quads-cover-required-attrs
   (let [r (first (dnb/parse-records sample-xml))
@@ -25,4 +36,5 @@
     (is (contains? attrs :library/title))
     (is (contains? attrs :library/source))
     (is (contains? attrs :library/isbn))
+    (is (contains? attrs :library/source-url))
     (is (every? #(= "dnb:1395072884" (first %)) quads))))
