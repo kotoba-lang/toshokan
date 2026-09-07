@@ -18,21 +18,31 @@
   (let [r (first (libris/parse-records sample-xml))]
     (is (= "libris-se:9903245734" (:entity r)))
     (is (= ["Yu, Beongcheon"] (:creators r)))
-    (is (not (some #(str/includes? % "Sōseki") (:creators r))))))
+    (is (not (some #(str/includes? % "Sōseki") (:creators r))))
+    ;; subject person still lands on :subjects (maturity: queryable subject)
+    (is (some #(str/includes? % "Sōseki") (:subjects r)))
+    (is (= "https://libris.kb.se/bib/9903245734" (:source-url r)))))
 
 (deftest keeps-multiple-real-creators
   (let [r (second (libris/parse-records sample-xml))]
     (is (= 3 (count (:creators r))))
-    (is (= ["9784805317747"] (:isbn r)))))
+    (is (= ["9784805317747"] (:isbn r)))
+    (is (some #{"Vänskap"} (:subjects r)))
+    (is (some #{"Japan"} (:subjects r)))))
 
 (deftest falls-back-to-record-identifier-when-no-libris99-id
   (let [r (nth (libris/parse-records sample-xml) 2)]
     (is (= "libris-se:0gkpc07qx4lv6qg3" (:entity r)))
-    (is (= [] (:creators r)))))
+    (is (= [] (:creators r)))
+    ;; uri identifier preferred when present (fixture has type=\"uri\")
+    (is (string? (:source-url r)))
+    (is (str/starts-with? (:source-url r) "http"))))
 
 (deftest quads-cover-required-attrs
   (let [r (first (libris/parse-records sample-xml))
         quads (libris/->quads 1 "2026-07-19T00:00:00Z" r)
         attrs (set (map second quads))]
     (is (contains? attrs :library/title))
-    (is (contains? attrs :library/source))))
+    (is (contains? attrs :library/source))
+    (is (contains? attrs :library/source-url))
+    (is (contains? attrs :library/subject))))

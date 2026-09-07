@@ -9,6 +9,7 @@
 ;;   nbb --classpath src:../../../scripts/nbb_compat scripts/query.cljs stats
 ;;   nbb ... scripts/query.cljs sample [N]
 ;;   nbb ... scripts/query.cljs sources
+;;   nbb ... scripts/query.cljs coverage
 ;;   nbb ... scripts/query.cljs q '[:find ?t :where [?e "library/title" ?t]]'
 
 (ns query
@@ -112,6 +113,58 @@
           ents (count (set (map first qs)))]
       (println (str ents "\t" (count qs) "\t" p)))))
 
+(def ^:private coverage-fields
+  "Observed bibliographic field presence — not a weighted score.
+  Counts entities that carry each attr at least once (cardinality-many
+  still counts as present)."
+  [:library/title
+   :library/creator
+   :library/date
+   :library/publisher
+   :library/publication-statement
+   :library/language
+   :library/subject
+   :library/source-url
+   :library/isbn
+   :library/fulltext-path])
+
+(defn- entity-attr-sets
+  "entity -> set of attrs that have at least one :add."
+  []
+  (let [by-e (group-by first (quads))]
+    (into {}
+          (map (fn [[entity entries]]
+                 [entity
+                  (into #{}
+                        (keep (fn [[_ a _ _ op]]
+                                (when (= op :add) a))
+                              entries))]))
+          by-e)))
+
+(defn cmd-coverage
+  "Per-source field fill rates over the local journal corpus. Pure
+  observation (n with field / n entities) — no invented maturity score."
+  []
+  (let [attr-sets (entity-attr-sets)
+        by-src (group-by (fn [[entity _]]
+                           (or (some-> (str entity) (str/split #":") first)
+                               "?"))
+                         attr-sets)]
+    (println (str "entities=" (count attr-sets)
+                  " sources=" (count by-src)
+                  " fields=" (count coverage-fields)))
+    (println (str "source\tn\t"
+                  (str/join "\t" (map name coverage-fields))))
+    (doseq [src (sort (keys by-src))]
+      (let [ents (map val (get by-src src))
+            n (count ents)
+            rates (for [f coverage-fields]
+                    (let [hit (count (filter #(contains? % f) ents))]
+                      (if (zero? n)
+                        "—"
+                        (str hit "/" n))))]
+        (println (str src "\t" n "\t" (str/join "\t" rates)))))))
+
 (defn- title-rows
   "Rebuild simple entity maps from quads (no datascript.q required)."
   []
@@ -147,12 +200,13 @@
     (case cmd
       "stats" (cmd-stats)
       "sources" (cmd-sources)
+      "coverage" (cmd-coverage)
       "sample" (cmd-sample (second args))
       "fulltext" (cmd-fulltext)
       "q" (if-let [q (second args)]
             (cmd-q q)
             (do (println "usage: query.cljs q '<datalog>'") (js/process.exit 1)))
-      (do (println "usage: query.cljs stats|sources|sample [N]|fulltext|q '<datalog>'")
+      (do (println "usage: query.cljs stats|sources|coverage|sample [N]|fulltext|q '<datalog>'")
           (js/process.exit 1)))))
 
 (let [argv (js->clj js/process.argv)

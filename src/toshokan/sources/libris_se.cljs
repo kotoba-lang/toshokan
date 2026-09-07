@@ -16,7 +16,12 @@
     <subject><name>, not a creator).
   - the primary identifier is <identifier type=\"libris99\">, with a
     fallback to <recordInfo><recordIdentifier> for records that lack one
-    (real data: the fixture's periodical record has no libris99 id)."
+    (real data: the fixture's periodical record has no libris99 id).
+  - subjects are harvested from <subject> (topic / geographic / namePart)
+    BEFORE stripping subject blocks for creator extraction, so SAO terms
+    and subject persons land on :library/subject without polluting creators.
+  - :source-url prefers <identifier type=\"uri\">, else the stable libris
+    bib page for a libris99 id (https://libris.kb.se/bib/<id>)."
   (:require [clojure.string :as str]
             [toshokan.quad :as quad]))
 
@@ -45,6 +50,21 @@
        (map (comp str/trim second))
        (remove str/blank?)))
 
+(defn- subject-values
+  "Collect topic / geographic / namePart values from each <subject> block.
+  Subject person names (namePart) are subjects, not creators — creators are
+  still taken only from the subject-stripped residual (see parse-record)."
+  [block]
+  (->> (re-seq #"<subject[^>]*>([\s\S]*?)</subject>" block)
+       (map second)
+       (mapcat (fn [inner]
+                 (concat (plain-tag-values "topic" inner)
+                         (plain-tag-values "geographic" inner)
+                         (plain-tag-values "namePart" inner))))
+       (remove str/blank?)
+       distinct
+       vec))
+
 (defn- record-blocks [xsearch-xml]
   (re-seq #"<mods [\s\S]*?</mods>" xsearch-xml))
 
@@ -53,16 +73,21 @@
         libris-id (first (typed-identifier "libris99" block))
         record-id (or libris-id
                       (first (attr-tag-values "recordIdentifier" block)))
-        titles (plain-tag-values "title" block)]
+        titles (plain-tag-values "title" block)
+        uri (first (typed-identifier "uri" block))
+        source-url (or uri
+                       (when libris-id (str "https://libris.kb.se/bib/" libris-id)))]
     (when (and record-id (seq titles))
       {:entity (str "libris-se:" record-id)
+       :source-url source-url
        :title (first titles)
        :creators creators
        :publishers (plain-tag-values "publisher" block)
        :date (first (plain-tag-values "dateIssued" block))
        :language (first (attr-tag-values "languageTerm" block))
        :isbn (typed-identifier "isbn" block)
-       :extent (plain-tag-values "extent" block)})))
+       :extent (plain-tag-values "extent" block)
+       :subjects (subject-values block)})))
 
 (defn parse-records [xsearch-xml-text]
   (keep parse-record (record-blocks xsearch-xml-text)))
@@ -89,6 +114,7 @@
   (quad/record->quads
    (:entity m) tx
    {:library/source source-key
+    :library/source-url (:source-url m)
     :library/title (:title m)
     :library/creator (:creators m)
     :library/publisher (:publishers m)
@@ -96,4 +122,5 @@
     :library/language (:language m)
     :library/isbn (:isbn m)
     :library/extent (:extent m)
+    :library/subject (:subjects m)
     :library/retrieved-at retrieved-at}))

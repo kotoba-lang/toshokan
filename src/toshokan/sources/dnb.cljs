@@ -31,9 +31,14 @@
 
 (defn parse-record [block]
   (let [idns (identifiers-by-type block "IDN")
-        titles (tag-values "dc:title" block)]
+        titles (tag-values "dc:title" block)
+        ;; Prefer an explicit tel:URL when present; otherwise the stable
+        ;; d-nb.info permalink for the IDN (canonical catalog page).
+        source-url (or (first (identifiers-by-type block "URL"))
+                       (when (seq idns) (str "https://d-nb.info/" (first idns))))]
     (when (and (seq idns) (seq titles))
       {:entity (str "dnb:" (first idns))
+       :source-url source-url
        :title (first titles)
        :creators (tag-values "dc:creator" block)
        :publishers (tag-values "dc:publisher" block)
@@ -70,6 +75,7 @@
   (quad/record->quads
    (:entity m) tx
    {:library/source source-key
+    :library/source-url (:source-url m)
     :library/title (:title m)
     :library/creator (:creators m)
     :library/publisher (:publishers m)
