@@ -9,7 +9,7 @@
   Note loc.gov/robots.txt disallows crawlers on /search for *unattributed*
   bots -- this harvester sends an identifying User-Agent per LOC's own
   request in that doc, distinguishing it from an anonymous scraper."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]))
 
 (def ^:const search-endpoint "https://www.loc.gov/search/")

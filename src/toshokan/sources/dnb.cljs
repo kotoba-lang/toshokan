@@ -11,7 +11,7 @@
   double-HTML-escaped the way NDL's dcndl schema is -- <recordData> holds
   directly-parseable <dc:*> XML, so this parser is simpler than
   toshokan.sources.ndl's."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]))
 
 (def ^:const sru-endpoint "https://services.dnb.de/sru/dnb")

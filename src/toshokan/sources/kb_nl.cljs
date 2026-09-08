@@ -12,7 +12,7 @@
   multiple <dc:identifier> for a resolver URI vs. an ISBN) rather than one
   element per concept -- similar shape to toshokan.sources.dnb, one layer
   more nested. Entity id is the PPN embedded in the resolver.kb.nl URI."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]))
 
 (def ^:const sru-endpoint "http://jsru.kb.nl/sru/sru")

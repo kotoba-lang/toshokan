@@ -16,7 +16,7 @@
             ["node:path" :as path]
             ["node:crypto" :as crypto]
             ["node:child_process" :as cp]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [cljs.reader :as edn]
             [toshokan.quad :as quad]))
 

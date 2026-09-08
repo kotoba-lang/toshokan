@@ -15,7 +15,7 @@
 (ns query
   (:require ["node:fs" :as fs]
             ["node:path" :as path]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [cljs.reader :as edn]))
 
 (def journal-dir (path/join "80-data" "public"))

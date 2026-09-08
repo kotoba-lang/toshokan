@@ -1,6 +1,6 @@
 (ns toshokan.kotobase-worker
   "Cloudflare R2 binding and narrow JavaScript facade for Kotobase Engine."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [goog.object :as gobj]
             [kotobase.engine :as engine]
             [kotobase.storage.core :as storage]))

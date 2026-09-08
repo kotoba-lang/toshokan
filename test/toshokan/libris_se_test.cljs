@@ -1,7 +1,7 @@
 (ns toshokan.libris-se-test
   (:require ["node:fs" :as fs]
             [clojure.test :refer [deftest is]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [toshokan.sources.libris-se :as libris]))
 
 (def sample-xml (fs/readFileSync "test/fixtures/libris-se-xsearch-sample.xml" "utf8"))

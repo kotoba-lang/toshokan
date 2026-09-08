@@ -16,7 +16,7 @@
 
 (ns harvest
   (:require ["node:path" :as path]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [toshokan.quad :as quad]
             [toshokan.sources.ndl :as ndl]
             [toshokan.sources.loc :as loc]

@@ -1,6 +1,6 @@
 (ns toshokan.dnb-test
   (:require ["node:fs" :as fs]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is]]
             [toshokan.sources.dnb :as dnb]))
 
