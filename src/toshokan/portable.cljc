@@ -4,7 +4,7 @@
   Planning and response parsing are pure CLJC. HTTP execution is represented
   by a typed, data-only Kotoba ability request and can be dispatched by a JVM,
   CLJS/workerd, or Wasm component host implementing the same provider key."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [kotoba.lang.capability-values :as caps]
             [kotoba.lang.portable-effect :as effect]
             [toshokan.sources.ndl-core :as ndl-core]))
@@ -91,7 +91,7 @@
                :deadlineMs (:deadline-ms limits)}
       :auditId (:cap/audit-id ability)}
      :input
-     {:method (str/upper-case (name (:method input)))
+     {:method (str/upper (name (:method input)))
       :url (:url input)
       :headers (:headers input)}}))
 
