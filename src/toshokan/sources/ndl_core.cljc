@@ -2,7 +2,7 @@
   "Pure CLJC NDL parser. It has no fetch, filesystem, clock, environment, or
   process access, so the exact parser runs under JVM Clojure and ClojureScript
   hosts. Network authority remains in a host adapter."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (defn- unescape-xml [s]
   (-> s
