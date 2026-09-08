@@ -1,7 +1,7 @@
 (ns toshokan.loc-test
   (:require ["node:fs" :as fs]
             [clojure.test :refer [deftest is]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [toshokan.sources.loc :as loc]))
 
 (defn- nfc [s] (.normalize s "NFC"))

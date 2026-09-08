@@ -14,7 +14,7 @@
   avoid sustained high-concurrency traffic (no fixed numeric rate limit is
   published) -- this namespace issues one sequential request per call, no
   internal concurrency."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]
             [toshokan.sources.ndl-core :as core]))
 

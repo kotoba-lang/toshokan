@@ -30,7 +30,7 @@
   (:require ["node:fs" :as fs]
             ["node:path" :as path]
             ["node:child_process" :as cp]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [cljs.reader :as edn]
             [toshokan.quad :as quad]
             [toshokan.sources.ndl :as ndl]
@@ -227,7 +227,7 @@
   (let [policy (:policy seeds-data)
         max-seeds (:max-seeds policy)
         max-new (:max-new-seeds-per-tick policy)
-        existing-q (->> (:seeds seeds-data) (map :query) (map str/lower-case) set)
+        existing-q (->> (:seeds seeds-data) (map :query) (map str/lower) set)
         candidates
         (->> new-records
              (mapcat (fn [m]
@@ -238,14 +238,14 @@
              (map str/trim)
              (remove str/blank?)
              (remove #(> (count %) 80))
-             (remove #(contains? existing-q (str/lower-case %)))
+             (remove #(contains? existing-q (str/lower %)))
              (distinct)
              (take max-new))
         room (- max-seeds (count (:seeds seeds-data)))
         to-add (take (max 0 room)
                      (map (fn [name]
                             (let [slug (-> name
-                                           (str/lower-case)
+                                           (str/lower)
                                            (str/replace #"[^a-z0-9\u3040-\u30ff\u4e00-\u9fff]+" "-")
                                            (str/replace #"^-+|-+$" ""))
                                   slug (if (str/blank? slug) "x" slug)

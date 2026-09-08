@@ -22,7 +22,7 @@
     and subject persons land on :library/subject without polluting creators.
   - :source-url prefers <identifier type=\"uri\">, else the stable libris
     bib page for a libris99 id (https://libris.kb.se/bib/<id>)."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]))
 
 (def ^:const xsearch-endpoint "http://libris.kb.se/xsearch")

@@ -13,7 +13,7 @@
   an \"ISBN <digits>\" string) -- disambiguated here by content shape
   rather than an xsi:type attribute (BnF's dublincore doesn't emit one,
   unlike DNB's)."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]))
 
 (def ^:const sru-endpoint "http://catalogue.bnf.fr/api/SRU")

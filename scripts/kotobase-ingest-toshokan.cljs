@@ -31,7 +31,7 @@
             ["node:fs" :as fs]
             ["node:path" :as path]
             [cljs.reader :as edn]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [kotobase.client :as client]))
 
 (def script-dir

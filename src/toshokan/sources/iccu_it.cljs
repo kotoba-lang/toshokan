@@ -17,7 +17,7 @@
   it. Treat this integration as more likely to break/change than the
   other sources here, and reconsider it if ICCU ever publishes and
   documents a stable SRU/OAI-PMH endpoint instead."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [toshokan.quad :as quad]))
 
 (def ^:const search-endpoint "http://opac.sbn.it/opacmobilegw/search.json")

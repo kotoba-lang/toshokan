@@ -1,7 +1,7 @@
 (ns toshokan.kb-nl-test
   (:require ["node:fs" :as fs]
             [clojure.test :refer [deftest is]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [toshokan.sources.kb-nl :as kb-nl]))
 
 (def sample-xml (fs/readFileSync "test/fixtures/kb-nl-sru-sample.xml" "utf8"))
