@@ -2,15 +2,15 @@
 ;; query.cljs — 80-data/public/*.journal.edn を DataScript に載せて問い合わせる。
 ;;
 ;; 属性は datascript.js 向けに **裸文字列**（"library/title"）。生 Datalog も同じ。
-;; kotobase.net 上の本番グラフは別経路（scripts/kotobase-ingest-toshokan.cljs）。
+;; kotobase.net 上の本番グラフは別経路（scripts/kotobase-ingest-toshokan.cljk）。
 ;; こちらは repo 内 journal のローカル検証用。
 ;;
 ;; Usage (repo root):
-;;   nbb --classpath src:../../../scripts/nbb_compat scripts/query.cljs stats
-;;   nbb ... scripts/query.cljs sample [N]
-;;   nbb ... scripts/query.cljs sources
-;;   nbb ... scripts/query.cljs coverage
-;;   nbb ... scripts/query.cljs q '[:find ?t :where [?e "library/title" ?t]]'
+;;   nbb --classpath src:../../../scripts/nbb_compat scripts/query.cljk stats
+;;   nbb ... scripts/query.cljk sample [N]
+;;   nbb ... scripts/query.cljk sources
+;;   nbb ... scripts/query.cljk coverage
+;;   nbb ... scripts/query.cljk q '[:find ?t :where [?e "library/title" ?t]]'
 
 (ns query
   (:require ["node:fs" :as fs]

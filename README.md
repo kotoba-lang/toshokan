@@ -23,33 +23,33 @@ full text is never stored.
 ## Self-growing resident loop (2026-07-25, ADR-2607255100)
 
 The repo now grows itself on a schedule instead of only via manual
-`scripts/harvest.cljs` one-shots:
+`scripts/harvest.cljk` one-shots:
 
 | file | role |
 |---|---|
 | `seeds.edn` | query seed list (hand-editable; daemon also appends grown seeds) |
-| `scripts/daemon.cljs` | one tick: harvest → dedupe → journal append → seed grow → optional fulltext + push + kotobase ingest |
+| `scripts/daemon.cljk` | one tick: harvest → dedupe → journal append → seed grow → optional fulltext + push + kotobase ingest |
 | `state.edn` | cursor / exhausted pairs (daemon-managed) |
-| `scripts/query.cljs` | local DataScript query over journals |
-| `scripts/fulltext-gutenberg.cljs` | public-domain full text (Gutenberg / gutendex) |
+| `scripts/query.cljk` | local DataScript query over journals |
+| `scripts/fulltext-gutenberg.cljk` | public-domain full text (Gutenberg / gutendex) |
 | `fulltext/gutenberg/` | annex bodies + per-work meta.edn |
 | `deploy/com.kotoba-lang.toshokan-tick.plist` | macOS LaunchAgent for murakumo-fleet host residency |
 
 ```bash
 # one tick (catalog harvest only)
-nbb --classpath src scripts/daemon.cljs --once
+nbb --classpath src scripts/daemon.cljk --once
 
 # one tick + public-domain fulltext + git push + kotobase fold (LaunchAgent)
-nbb --classpath src scripts/daemon.cljs --once --fulltext --push --ingest
+nbb --classpath src scripts/daemon.cljk --once --fulltext --push --ingest
 
 # fulltext only (a few classics / seed-driven)
-nbb --classpath src scripts/fulltext-gutenberg.cljs --id 1342
-nbb --classpath src scripts/fulltext-gutenberg.cljs --from-seeds --limit 1
+nbb --classpath src scripts/fulltext-gutenberg.cljk --id 1342
+nbb --classpath src scripts/fulltext-gutenberg.cljk --from-seeds --limit 1
 
 # local query surface
-nbb --classpath src scripts/query.cljs stats
-nbb --classpath src scripts/query.cljs sample 10
-nbb --classpath src scripts/query.cljs fulltext
+nbb --classpath src scripts/query.cljk stats
+nbb --classpath src scripts/query.cljk sample 10
+nbb --classpath src scripts/query.cljk fulltext
 ```
 
 Residency on the murakumo fleet host is a LaunchAgent (same class as
@@ -135,7 +135,7 @@ realistic path to ever unblock it the way Korea's might be.
 Iran and Russia have no official API, OAI-PMH, SRU, or bulk export — only
 unofficial third-party HTML scrapers exist for either, and both sit in
 sanctions-sensitive territory that hasn't had legal review for this use.
-See `src/toshokan/sources/iran_nlai.cljs` and `russia_rsl.cljs` for the
+See `src/toshokan/sources/iran_nlai.cljk` and `russia_rsl.cljs` for the
 full reasoning; calling `search` on either throws immediately rather than
 silently no-op'ing.
 
@@ -143,7 +143,7 @@ silently no-op'ing.
 served directly from Italy's own official ICCU/OPAC SBN domain (not a
 third-party scrape of somebody else's system), but it's the *mobile app's*
 undocumented JSON backend, not ICCU's formally published protocol (which
-is Z39.50). See `src/toshokan/sources/iccu_it.cljs` for the full caveat —
+is Z39.50). See `src/toshokan/sources/iccu_it.cljk` for the full caveat —
 more likely to change/break than this repo's other sources.
 
 ## Usage
@@ -154,25 +154,25 @@ nbb). From this repo's root:
 
 ```bash
 # harvest a source into this repo's own 80-data/public/<source>.journal.edn
-npx nbb --classpath "src" scripts/harvest.cljs ndl 'title="夏目漱石"' 20
-npx nbb --classpath "src" scripts/harvest.cljs loc "natsume soseki" 20
-npx nbb --classpath "src" scripts/harvest.cljs dnb "WOE=soseki" 20
-npx nbb --classpath "src" scripts/harvest.cljs bnf 'bib.title all "soseki"' 20
-npx nbb --classpath "src" scripts/harvest.cljs kb-nl soseki 20
-npx nbb --classpath "src" scripts/harvest.cljs libris-se soseki 20
-npx nbb --classpath "src" scripts/harvest.cljs nb-no soseki 20
-npx nbb --classpath "src" scripts/harvest.cljs iccu-it soseki 20
-NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljs korea-nl "소세키" 20
+npx nbb --classpath "src" scripts/harvest.cljk ndl 'title="夏目漱石"' 20
+npx nbb --classpath "src" scripts/harvest.cljk loc "natsume soseki" 20
+npx nbb --classpath "src" scripts/harvest.cljk dnb "WOE=soseki" 20
+npx nbb --classpath "src" scripts/harvest.cljk bnf 'bib.title all "soseki"' 20
+npx nbb --classpath "src" scripts/harvest.cljk kb-nl soseki 20
+npx nbb --classpath "src" scripts/harvest.cljk libris-se soseki 20
+npx nbb --classpath "src" scripts/harvest.cljk nb-no soseki 20
+npx nbb --classpath "src" scripts/harvest.cljk iccu-it soseki 20
+NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljk korea-nl "소세키" 20
 
 # fold every local journal into kotobase.net (self-mints an Ed25519
 # identity into scripts/.kotobase-ingest-toshokan-identity.hex on first
 # run -- gitignored, back it up, losing it orphans the graph)
 NODE_PATH="<path-to>/kotoba-lang/kotobase-client/node_modules" \
   npx nbb --classpath "<path-to>/kotoba-lang/kotobase-client/src:src" \
-  scripts/kotobase-ingest-toshokan.cljs
+  scripts/kotobase-ingest-toshokan.cljk
 
 # tests (fixture-based, no live network)
-npx nbb --classpath "src:test" scripts/run-tests.cljs
+npx nbb --classpath "src:test" scripts/run-tests.cljk
 
 # one Kotoba policy test definition, executed on KIR/JVM + restricted ESM + Wasm
 cd ../compiler
@@ -195,7 +195,7 @@ Attributes: `:library/source`,
 `:library/publisher`, `:library/date`, `:library/language`,
 `:library/format`, `:library/ndc` / `:library/lccn` / `:library/isbn`,
 `:library/subject` (many), `:library/retrieved-at`. See
-`src/toshokan/quad.cljs` and each `toshokan.sources.*` namespace.
+`src/toshokan/quad.cljk` and each `toshokan.sources.*` namespace.
 
 ## Scope not yet covered
 

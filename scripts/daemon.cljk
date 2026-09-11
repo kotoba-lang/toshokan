@@ -21,10 +21,10 @@
 ;; 載せ替えは ADR-2607252400 の capability が揃ってから（排他ではない）。
 ;;
 ;; Usage (repo root):
-;;   nbb --classpath src scripts/daemon.cljs --once
-;;   nbb --classpath src scripts/daemon.cljs --once --push --ingest
-;;   nbb --classpath src scripts/daemon.cljs --once --fulltext --push --ingest
-;;   nbb --classpath src scripts/daemon.cljs --interval 21600 --push --ingest --fulltext
+;;   nbb --classpath src scripts/daemon.cljk --once
+;;   nbb --classpath src scripts/daemon.cljk --once --push --ingest
+;;   nbb --classpath src scripts/daemon.cljk --once --fulltext --push --ingest
+;;   nbb --classpath src scripts/daemon.cljk --interval 21600 --push --ingest --fulltext
 
 (ns daemon
   (:require ["node:fs" :as fs]
@@ -336,7 +336,7 @@
   []
   (println "[daemon] fulltext-gutenberg tick")
   (zero? (sh-status "nbb" "--classpath" "src"
-                    "scripts/fulltext-gutenberg.cljs"
+                    "scripts/fulltext-gutenberg.cljk"
                     "--browse" "--limit" "3")))
 
 (defn- git-push!
@@ -372,7 +372,7 @@
     (zero? (sh-status "env"
                       (str "NODE_PATH=" nm)
                       "nbb" "--classpath" cp-str
-                      "scripts/kotobase-ingest-toshokan.cljs"))))
+                      "scripts/kotobase-ingest-toshokan.cljk"))))
 
 (defn tick!
   [{:keys [push? ingest? fulltext?]}]
