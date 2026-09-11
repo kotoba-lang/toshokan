@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; kotobase-ingest-toshokan.cljs — pull-based batch fold job that closes
 ;; ADR-2607072300's "journal -> kotobase-peer fold job" gap for this repo,
 ;; the same shape as scripts/kotobase-ingest-cloud-itonami-lei.cljs

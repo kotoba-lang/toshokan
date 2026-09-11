@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build:kotoba": "scripts/build-portable-effect.sh",
-    "build:kotobase": "shadow-cljs release kotobase-worker",
+    "build:kotobase": "amu compile --target wasm32-browser kotobase-worker",
     "build": "npm run build:kotoba && npm run build:kotobase",
     "dev": "npm run build && wrangler dev --config workerd/generated/host/wrangler.json",
     "deploy": "npm run build && wrangler deploy --config workerd/generated/host/wrangler.json",

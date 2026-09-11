@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; daemon.cljs — toshokan 自己成長常駐ティック。
 ;;
 ;; ## 何をするか
@@ -21,10 +21,10 @@
 ;; 載せ替えは ADR-2607252400 の capability が揃ってから（排他ではない）。
 ;;
 ;; Usage (repo root):
-;;   nbb --classpath src scripts/daemon.cljk --once
-;;   nbb --classpath src scripts/daemon.cljk --once --push --ingest
-;;   nbb --classpath src scripts/daemon.cljk --once --fulltext --push --ingest
-;;   nbb --classpath src scripts/daemon.cljk --interval 21600 --push --ingest --fulltext
+;;   kbb --backend sci --classpath src scripts/daemon.cljk --once
+;;   kbb --backend sci --classpath src scripts/daemon.cljk --once --push --ingest
+;;   kbb --backend sci --classpath src scripts/daemon.cljk --once --fulltext --push --ingest
+;;   kbb --backend sci --classpath src scripts/daemon.cljk --interval 21600 --push --ingest --fulltext
 
 (ns daemon
   (:require ["node:fs" :as fs]
@@ -335,7 +335,7 @@
    fills the limit faster while remaining public-domain only."
   []
   (println "[daemon] fulltext-gutenberg tick")
-  (zero? (sh-status "nbb" "--classpath" "src"
+  (zero? (sh-status "kbb" "--backend" "sci" "--classpath" "src"
                     "scripts/fulltext-gutenberg.cljk"
                     "--browse" "--limit" "3")))
 
@@ -371,7 +371,7 @@
         cp-str (str client-src ":" "src")]
     (zero? (sh-status "env"
                       (str "NODE_PATH=" nm)
-                      "nbb" "--classpath" cp-str
+                      "kbb" "--backend" "sci" "--classpath" cp-str
                       "scripts/kotobase-ingest-toshokan.cljk"))))
 
 (defn tick!
