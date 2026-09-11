@@ -3,12 +3,12 @@
 ;; the results to this repo's own `80-data/public/<source>.journal.edn`
 ;; (the git-authoritative EDN quad-log per ADR-2607072300). This script
 ;; only ever WRITES to this repo's working tree; it never talks to
-;; kotobase.net -- that's scripts/kotobase-ingest-toshokan.cljs's job, kept
+;; kotobase.net -- that's scripts/kotobase-ingest-toshokan.cljk's job, kept
 ;; separate the same way the two concerns are separated for
 ;; cloud-itonami-lei-* (journal-in-repo vs. fold-into-kotobase).
 ;;
 ;; Usage (from the repo root):
-;;   npx nbb --classpath "src" scripts/harvest.cljs <source> "<query>" [max-records]
+;;   npx nbb --classpath "src" scripts/harvest.cljk <source> "<query>" [max-records]
 ;;
 ;; <source> is one of: ndl | loc | korea-nl | dnb | bnf | kb-nl | libris-se | nb-no | iccu-it
 ;; (iran-nlai / russia-rsl are intentionally unimplemented -- see their

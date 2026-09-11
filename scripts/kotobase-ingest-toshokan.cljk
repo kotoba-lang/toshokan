@@ -11,7 +11,7 @@
 ;; Run (from this repo's root, after `npm install` in kotobase-client once):
 ;;   NODE_PATH="<path-to>/kotobase-client/node_modules" npx nbb \
 ;;     --classpath "<path-to>/kotobase-client/src:src" \
-;;     scripts/kotobase-ingest-toshokan.cljs
+;;     scripts/kotobase-ingest-toshokan.cljk
 ;;
 ;; Identity: a fresh Ed25519 seed is generated on first run and persisted to
 ;; scripts/.kotobase-ingest-toshokan-identity.hex (gitignored, NEVER commit
