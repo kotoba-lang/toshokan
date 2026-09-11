@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; toshokan harvest CLI -- fetches from one live library source and appends
 ;; the results to this repo's own `80-data/public/<source>.journal.edn`
 ;; (the git-authoritative EDN quad-log per ADR-2607072300). This script
@@ -8,7 +8,7 @@
 ;; cloud-itonami-lei-* (journal-in-repo vs. fold-into-kotobase).
 ;;
 ;; Usage (from the repo root):
-;;   npx nbb --classpath "src" scripts/harvest.cljk <source> "<query>" [max-records]
+;;   kbb --backend sci --classpath "src" scripts/harvest.cljk <source> "<query>" [max-records]
 ;;
 ;; <source> is one of: ndl | loc | korea-nl | dnb | bnf | kb-nl | libris-se | nb-no | iccu-it
 ;; (iran-nlai / russia-rsl are intentionally unimplemented -- see their

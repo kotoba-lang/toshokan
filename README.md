@@ -37,19 +37,19 @@ The repo now grows itself on a schedule instead of only via manual
 
 ```bash
 # one tick (catalog harvest only)
-nbb --classpath src scripts/daemon.cljk --once
+kbb --backend sci --classpath src scripts/daemon.cljk --once
 
 # one tick + public-domain fulltext + git push + kotobase fold (LaunchAgent)
-nbb --classpath src scripts/daemon.cljk --once --fulltext --push --ingest
+kbb --backend sci --classpath src scripts/daemon.cljk --once --fulltext --push --ingest
 
 # fulltext only (a few classics / seed-driven)
-nbb --classpath src scripts/fulltext-gutenberg.cljk --id 1342
-nbb --classpath src scripts/fulltext-gutenberg.cljk --from-seeds --limit 1
+kbb --backend sci --classpath src scripts/fulltext-gutenberg.cljk --id 1342
+kbb --backend sci --classpath src scripts/fulltext-gutenberg.cljk --from-seeds --limit 1
 
 # local query surface
-nbb --classpath src scripts/query.cljk stats
-nbb --classpath src scripts/query.cljk sample 10
-nbb --classpath src scripts/query.cljk fulltext
+kbb --backend sci --classpath src scripts/query.cljk stats
+kbb --backend sci --classpath src scripts/query.cljk sample 10
+kbb --backend sci --classpath src scripts/query.cljk fulltext
 ```
 
 Residency on the murakumo fleet host is a LaunchAgent (same class as
@@ -154,29 +154,29 @@ nbb). From this repo's root:
 
 ```bash
 # harvest a source into this repo's own 80-data/public/<source>.journal.edn
-npx nbb --classpath "src" scripts/harvest.cljk ndl 'title="夏目漱石"' 20
-npx nbb --classpath "src" scripts/harvest.cljk loc "natsume soseki" 20
-npx nbb --classpath "src" scripts/harvest.cljk dnb "WOE=soseki" 20
-npx nbb --classpath "src" scripts/harvest.cljk bnf 'bib.title all "soseki"' 20
-npx nbb --classpath "src" scripts/harvest.cljk kb-nl soseki 20
-npx nbb --classpath "src" scripts/harvest.cljk libris-se soseki 20
-npx nbb --classpath "src" scripts/harvest.cljk nb-no soseki 20
-npx nbb --classpath "src" scripts/harvest.cljk iccu-it soseki 20
-NL_GO_KR_API_KEY=... npx nbb --classpath "src" scripts/harvest.cljk korea-nl "소세키" 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk ndl 'title="夏目漱石"' 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk loc "natsume soseki" 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk dnb "WOE=soseki" 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk bnf 'bib.title all "soseki"' 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk kb-nl soseki 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk libris-se soseki 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk nb-no soseki 20
+kbb --backend sci --classpath "src" scripts/harvest.cljk iccu-it soseki 20
+NL_GO_KR_API_KEY=... kbb --backend sci --classpath "src" scripts/harvest.cljk korea-nl "소세키" 20
 
 # fold every local journal into kotobase.net (self-mints an Ed25519
 # identity into scripts/.kotobase-ingest-toshokan-identity.hex on first
 # run -- gitignored, back it up, losing it orphans the graph)
 NODE_PATH="<path-to>/kotoba-lang/kotobase-client/node_modules" \
-  npx nbb --classpath "<path-to>/kotoba-lang/kotobase-client/src:src" \
+  kbb --backend sci --classpath "<path-to>/kotoba-lang/kotobase-client/src:src" \
   scripts/kotobase-ingest-toshokan.cljk
 
 # tests (fixture-based, no live network)
-npx nbb --classpath "src:test" scripts/run-tests.cljk
+kbb --backend sci --classpath "src:test" scripts/run-tests.cljk
 
 # one Kotoba policy test definition, executed on KIR/JVM + restricted ESM + Wasm
 cd ../compiler
-clojure -M:run test ../toshokan/src/toshokan/portable_effect.kotoba
+kbb -M:run test ../toshokan/src/toshokan/portable_effect.kotoba
 
 # build the restricted ESM policy imported by the workerd adapter
 cd ../toshokan

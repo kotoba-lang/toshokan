@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; query.cljs — 80-data/public/*.journal.edn を DataScript に載せて問い合わせる。
 ;;
 ;; 属性は datascript.js 向けに **裸文字列**（"library/title"）。生 Datalog も同じ。
@@ -6,7 +6,7 @@
 ;; こちらは repo 内 journal のローカル検証用。
 ;;
 ;; Usage (repo root):
-;;   nbb --classpath src:../../../scripts/nbb_compat scripts/query.cljk stats
+;;   kbb --backend sci --classpath src:../../../scripts/nbb_compat scripts/query.cljk stats
 ;;   nbb ... scripts/query.cljk sample [N]
 ;;   nbb ... scripts/query.cljk sources
 ;;   nbb ... scripts/query.cljk coverage

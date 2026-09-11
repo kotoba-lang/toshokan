@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; fulltext-gutenberg.cljs — Project Gutenberg public-domain full text.
 ;;
 ;; Uses gutendex.com (JSON, no key) which exposes `copyright: false` for
@@ -7,9 +7,9 @@
 ;; 80-data/public/gutenberg.journal.edn (plain git, same as other sources).
 ;;
 ;; Usage (repo root):
-;;   nbb --classpath src scripts/fulltext-gutenberg.cljk --seed "Pride and Prejudice" --limit 2
-;;   nbb --classpath src scripts/fulltext-gutenberg.cljk --id 1342
-;;   nbb --classpath src scripts/fulltext-gutenberg.cljk --from-seeds --limit 1
+;;   kbb --backend sci --classpath src scripts/fulltext-gutenberg.cljk --seed "Pride and Prejudice" --limit 2
+;;   kbb --backend sci --classpath src scripts/fulltext-gutenberg.cljk --id 1342
+;;   kbb --backend sci --classpath src scripts/fulltext-gutenberg.cljk --from-seeds --limit 1
 
 (ns fulltext-gutenberg
   (:require ["node:fs" :as fs]
