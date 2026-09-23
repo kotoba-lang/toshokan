@@ -446,7 +446,7 @@
 
 (defn -main []
   (let [argv (js->clj js/process.argv)
-        script-idx (or (some (fn [[i a]] (when (str/ends-with? a "daemon.cljs") i))
+        script-idx (or (some (fn [[i a]] (when (str/ends-with? a "daemon.cljk") i))
                              (map-indexed vector argv))
                        2)
         opts (parse-args (drop (inc script-idx) argv))]

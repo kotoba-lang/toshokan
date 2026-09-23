@@ -398,7 +398,7 @@
 (defn -main []
   (let [argv (js->clj js/process.argv)
         idx (or (some (fn [[i a]]
-                        (when (str/ends-with? a "fulltext-gutenberg.cljs") i))
+                        (when (str/ends-with? a "fulltext-gutenberg.cljk") i))
                       (map-indexed vector argv))
                 2)
         opts (parse-args (drop (inc idx) argv))
