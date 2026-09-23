@@ -101,7 +101,7 @@
 ;; script-path index), so locate this script's own path in argv rather than
 ;; assuming a fixed offset, and take everything after it as user args.
 (let [argv (js->clj js/process.argv)
-      script-idx (or (some (fn [[i a]] (when (str/ends-with? a "harvest.cljs") i))
+      script-idx (or (some (fn [[i a]] (when (str/ends-with? a "harvest.cljk") i))
                             (map-indexed vector argv))
                      2)
       [source-name query max-str] (drop (inc script-idx) argv)]
