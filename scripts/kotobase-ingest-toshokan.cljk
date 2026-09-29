@@ -16,7 +16,7 @@
 ;; Identity: a fresh Ed25519 seed is generated on first run and persisted to
 ;; scripts/.kotobase-ingest-toshokan-identity.hex (gitignored, NEVER commit
 ;; this file). The graph is `kotobase/db/<that-did>/toshokan-library-catalog`,
-;; self-sovereign per ADR-2607072300/root CLAUDE.md's CACAO actor pattern.
+;; self-sovereign per ADR-2607072300/root AGENTS.md's CACAO actor pattern.
 ;; Re-running with the SAME identity file re-asserts the same [entity attr]
 ;; facts (cardinality-one upsert per entity+attr, idempotent). Losing the
 ;; identity file starts a NEW, empty graph — back it up before treating it
